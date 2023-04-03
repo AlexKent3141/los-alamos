@@ -1,5 +1,9 @@
-#include "punk.h"
 #include "SDL.h"
+
+extern "C"
+{
+#include "punk.h"
+}
 
 #include <cstdlib>
 #include <stdexcept>
@@ -49,10 +53,14 @@ LosAlamosApp::LosAlamosApp()
   }
 
   SDL_SetRenderDrawBlendMode(renderer_, SDL_BLENDMODE_BLEND);
+
+  punk_init(renderer_, width, height);
 }
 
 LosAlamosApp::~LosAlamosApp()
 {
+  punk_quit();
+
   SDL_DestroyRenderer(renderer_);
   SDL_DestroyWindow(window_);
   SDL_Quit();
