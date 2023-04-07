@@ -211,13 +211,13 @@ void LosAlamosApp::run()
 
     punk_end_layout();
 
-    punk_render();
-
     punk_end();
+
+    punk_render();
 
     SDL_RenderPresent(renderer_);
 
-    SDL_Delay(10);
+    SDL_Delay(50);
   }
 }
 

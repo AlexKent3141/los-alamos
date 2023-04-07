@@ -12,6 +12,10 @@ CPMAddPackage(
 add_executable(los_alamos
   main.cpp)
 
+target_compile_options(los_alamos
+  PRIVATE
+    -g)
+
 target_link_libraries(los_alamos
   PRIVATE
     punk)
