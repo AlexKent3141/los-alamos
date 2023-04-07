@@ -5,30 +5,19 @@ extern "C"
 #include "punk.h"
 }
 
+#include "engine/engine.h"
+
 #include <array>
 #include <cstdlib>
 #include <optional>
 #include <stdexcept>
 #include <string>
 
-enum class PieceColour
-{
-  WHITE,
-  BLACK
-};
-
-enum class PieceType
-{
-  PAWN,
-  KNIGHT,
-  ROOK,
-  QUEEN,
-  KING
-};
+using namespace la;
 
 struct Piece
 {
-  PieceColour colour;
+  Colour colour;
   PieceType type;
 
   std::string image_path() const;
@@ -39,8 +28,8 @@ std::string Piece::image_path() const
   std::string colour_str, type_str;
   switch (colour)
   {
-    case PieceColour::WHITE: colour_str = "white"; break;
-    case PieceColour::BLACK: colour_str = "black"; break;
+    case Colour::WHITE: colour_str = "white"; break;
+    case Colour::BLACK: colour_str = "black"; break;
   }
   switch (type)
   {
@@ -81,10 +70,10 @@ ChessState::ChessState()
 
   for (int c = 0; c < 6; c++)
   {
-    pieces_[c] = { PieceColour::WHITE, backrank[c] };
-    pieces_[6 + c] = { PieceColour::WHITE, PieceType::PAWN };
-    pieces_[24 + c] = { PieceColour::BLACK, PieceType::PAWN };
-    pieces_[30 + c] = { PieceColour::BLACK, backrank[c] };
+    pieces_[c] = { Colour::WHITE, backrank[c] };
+    pieces_[6 + c] = { Colour::WHITE, PieceType::PAWN };
+    pieces_[24 + c] = { Colour::BLACK, PieceType::PAWN };
+    pieces_[30 + c] = { Colour::BLACK, backrank[c] };
   }
 }
 

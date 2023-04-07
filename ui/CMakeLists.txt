@@ -13,6 +13,7 @@ target_compile_options(los_alamos
 
 target_link_libraries(los_alamos
   PRIVATE
+    engine
     punk)
 
 set_target_properties(los_alamos
