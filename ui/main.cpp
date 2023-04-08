@@ -15,23 +15,15 @@ extern "C"
 
 using namespace la;
 
-struct Piece
-{
-  Colour colour;
-  PieceType type;
-
-  std::string image_path() const;
-};
-
-std::string Piece::image_path() const
+static std::string image_path(const Piece& piece)
 {
   std::string colour_str, type_str;
-  switch (colour)
+  switch (piece.colour)
   {
     case Colour::WHITE: colour_str = "white"; break;
     case Colour::BLACK: colour_str = "black"; break;
   }
-  switch (type)
+  switch (piece.type)
   {
     case PieceType::PAWN:   type_str = "pawn";   break;
     case PieceType::KNIGHT: type_str = "knight"; break;
@@ -41,45 +33,6 @@ std::string Piece::image_path() const
   }
 
   return "res/" + colour_str + "_" + type_str + ".png";
-}
-
-class ChessState
-{
-public:
-  ChessState();
-  std::optional<Piece> get_piece(int, int) const;
-
-private:
-  // The piece at index 0 is white's queenside rook.
-  std::array<std::optional<Piece>, 36> pieces_;
-};
-
-ChessState::ChessState()
-{
-  pieces_.fill(std::nullopt);
-
-  static constexpr std::array<PieceType, 6> backrank =
-  {
-    PieceType::ROOK,
-    PieceType::KNIGHT,
-    PieceType::QUEEN,
-    PieceType::KING, 
-    PieceType::KNIGHT,
-    PieceType::ROOK
-  };
-
-  for (int c = 0; c < 6; c++)
-  {
-    pieces_[c] = { Colour::WHITE, backrank[c] };
-    pieces_[6 + c] = { Colour::WHITE, PieceType::PAWN };
-    pieces_[24 + c] = { Colour::BLACK, PieceType::PAWN };
-    pieces_[30 + c] = { Colour::BLACK, backrank[c] };
-  }
-}
-
-std::optional<Piece> ChessState::get_piece(int row, int col) const
-{
-  return pieces_[6 * row + col];
 }
 
 class LosAlamosApp
@@ -150,7 +103,7 @@ void LosAlamosApp::run()
   white_square.control_colour_rgba = 0xFFFFFFFF;
   white_square.active_colour_rgba = 0x7070FFFF;
 
-  ChessState state;
+  Board state;
 
   SDL_Event event;
   SDL_bool stop = SDL_FALSE;
@@ -191,7 +144,7 @@ void LosAlamosApp::run()
         }
         else
         {
-          punk_picture_button(piece->image_path().c_str(), &style);
+          punk_picture_button(image_path(*piece).c_str(), &style);
         }
       }
 

@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <vector>
 
 namespace la
@@ -23,6 +24,12 @@ enum class PieceType : std::uint8_t
   KING
 };
 
+struct Piece
+{
+  Colour colour;
+  PieceType type;
+};
+
 // Moves are encoded:
 // Byte 0: the start location index
 // Byte 1: the end location index
@@ -36,9 +43,11 @@ class Board
 {
 public:
   Board();
+  ~Board();
   std::vector<Move> get_moves() const;
   void make_move(Move);
   void undo_move(Move);
+  std::optional<Piece> get_piece(int, int) const;
 
 private:
   std::unique_ptr<BoardImpl> impl_;

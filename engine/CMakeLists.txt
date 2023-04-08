@@ -8,3 +8,8 @@ target_include_directories(engine
 target_sources(engine
   PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/board.cpp)
+
+set_target_properties(engine
+  PROPERTIES
+    LANGUAGE CXX
+    CXX_STANDARD 17)
