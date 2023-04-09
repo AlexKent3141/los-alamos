@@ -44,8 +44,11 @@ class Board
 public:
   Board();
   ~Board();
+  Colour player_to_move() const;
   std::vector<Move> get_moves() const;
+  std::vector<int> get_targets_for_piece(int, int) const;
   void make_move(Move);
+  void make_move(int, int);
   void undo_move(Move);
   std::optional<Piece> get_piece(int, int) const;
 

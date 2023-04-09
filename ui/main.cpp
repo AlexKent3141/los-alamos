@@ -10,6 +10,7 @@ extern "C"
 #include <array>
 #include <cstdlib>
 #include <optional>
+#include <set>
 #include <stdexcept>
 #include <string>
 
@@ -93,17 +94,25 @@ LosAlamosApp::~LosAlamosApp()
 
 void LosAlamosApp::run()
 {
-  struct punk_style black_square, white_square;
+  struct punk_style black_square, white_square, piece_target;
+
   punk_default_style(&black_square);
   black_square.back_colour_rgba = 0x0000FFFF;
   black_square.control_colour_rgba = 0x0000FFFF;
   black_square.active_colour_rgba = 0x7070FFFF;
+
   punk_default_style(&white_square);
   white_square.back_colour_rgba = 0xFFFFFFFF;
   white_square.control_colour_rgba = 0xFFFFFFFF;
   white_square.active_colour_rgba = 0x7070FFFF;
 
+  punk_default_style(&piece_target);
+  piece_target.back_colour_rgba = 0xFF7070FF;
+  piece_target.control_colour_rgba = 0xFF7070FF;
+
   Board state;
+  int selected_index;
+  std::set<int> piece_targets;
 
   SDL_Event event;
   SDL_bool stop = SDL_FALSE;
@@ -136,15 +145,63 @@ void LosAlamosApp::run()
       punk_begin_horizontal_layout("1:1:1:1:1:1", PUNK_FILL, PUNK_FILL);
       for (int c = 0; c < 6; c++)
       {
+        bool is_target = piece_targets.find(6*(5 - r) + c) != std::end(piece_targets);
         const auto piece = state.get_piece(5 - r, c);
-        const auto style = (sq++ & 0x1) ? white_square : black_square;
-        if (!piece)
+        punk_style style;
+        if (is_target)
         {
-          punk_label(" ", &style);
+          style = piece_target;
         }
         else
         {
-          punk_picture_button(image_path(*piece).c_str(), &style);
+          style = (sq & 0x1) ? white_square : black_square;
+        }
+
+        ++sq;
+
+        if (!piece)
+        {
+          if (!is_target)
+          {
+            // Unclickable empty location.
+            punk_label(" ", &style);
+          }
+          else
+          {
+            // Clickable empty location.
+            if (punk_button(" ", &style))
+            {
+              int target_index = 6*(5 - r) + c;
+              state.make_move(selected_index, target_index);
+              piece_targets.clear();
+            }
+          }
+        }
+        else
+        {
+          if (punk_picture_button(image_path(*piece).c_str(), &style))
+          {
+            if (is_target)
+            {
+              // Actually make the move.
+              int target_index = 6*(5 - r) + c;
+              state.make_move(selected_index, target_index);
+              piece_targets.clear();
+            }
+            else
+            {
+              // Selected a new piece.
+              selected_index = 6*(5 - r) + c;
+
+              // Store the targets.
+              const auto targets = state.get_targets_for_piece(5 - r, c);
+              piece_targets.clear();
+              for (const auto target : targets)
+              {
+                piece_targets.insert(target);
+              }
+            }
+          }
         }
       }
 
