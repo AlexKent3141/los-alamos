@@ -12,6 +12,10 @@ namespace
 // Byte 1: the piece type (can be NONE)
 // Byte 2: the colour of the piece
 using Square = std::uint32_t;
+}
+
+namespace square
+{
 
 bool on_board(Square sq) { return sq & 0xFF; }
 la::PieceType get_pt(Square sq) { return static_cast<la::PieceType>((sq & 0xFF00) >> 8); }
@@ -19,17 +23,27 @@ la::Colour get_colour(Square sq) { return static_cast<la::Colour>((sq & 0xFF0000
 
 }
 
-namespace la
+namespace move
 {
 
-static Move create_move(
+int get_start(la::Move m) { return m & 0xFF; }
+int get_end(la::Move m) { return (m & 0xFF00) >> 8; }
+la::PieceType get_cap(la::Move m) { return static_cast<la::PieceType>((m & 0xFF0000) >> 16); }
+la::PieceType get_promo(la::Move m) { return static_cast<la::PieceType>((m & 0xFF000000) >> 24); }
+
+la::Move create(
   int start,
   int end,
-  PieceType cap = PieceType::NONE,
-  PieceType promotion = PieceType::NONE)
+  la::PieceType cap = la::PieceType::NONE,
+  la::PieceType promotion = la::PieceType::NONE)
 {
   return start + (end << 8) + (static_cast<int>(cap) << 16) + (static_cast<int>(promotion) << 24);
 }
+
+}
+
+namespace la
+{
 
 // Represent the board state using a "letter-box" style structure.
 class BoardImpl
@@ -90,6 +104,8 @@ private:
     int padded_col = loc % padded_board_side;
     return (padded_row - 2) * board_side + padded_col - 2;
   }
+
+  void add_pawn_moves(int, std::vector<Move>&) const;
 };
 
 BoardImpl::BoardImpl() : player_to_move_(Colour::WHITE)
@@ -133,19 +149,59 @@ BoardImpl::BoardImpl() : player_to_move_(Colour::WHITE)
   }
 }
 
+void BoardImpl::add_pawn_moves(int loc, std::vector<Move>& moves) const
+{
+  const int forward_offset =
+    player_to_move_ == Colour::WHITE ?  padded_board_side : -padded_board_side;
+
+  // Can we move forward to an empty location?
+  const int forward = loc + forward_offset;
+  Square target_sq = squares_[forward];
+  if (square::get_pt(target_sq) == PieceType::NONE)
+  {
+    moves.push_back(move::create(loc, forward));
+  }
+
+  // Can we capture diagonally?
+  const int left_diag = forward - 1;
+  target_sq = squares_[left_diag];
+
+  if (target_sq & 0xFF)
+  {
+    auto pt = square::get_pt(target_sq);
+    if (pt != PieceType::NONE && square::get_colour(target_sq) != player_to_move_)
+    {
+      moves.push_back(move::create(loc, left_diag, pt));
+    }
+  }
+
+  const int right_diag = forward + 1;
+  target_sq = squares_[right_diag];
+
+  if (target_sq & 0xFF)
+  {
+    auto pt = square::get_pt(target_sq);
+    if (pt != PieceType::NONE && square::get_colour(target_sq) != player_to_move_)
+    {
+      moves.push_back(move::create(loc, right_diag, pt));
+    }
+  }
+}
+
 std::vector<Move> BoardImpl::get_moves() const
 {
   // TODO: Finish implementing pawn moves and checks etc.
+  Square target_sq;
   std::vector<Move> moves;
   for (int loc = 0; loc < padded_board_area; loc++)
   {
     const Square sq = squares_[loc];
     if (!(sq & 0xFF)) continue; // Ignore padding locations.
 
-    const auto pt = get_pt(sq);
+    const auto pt = square::get_pt(sq);
     if (pt == PieceType::NONE) continue; // Ignore empty locations.
 
-    const auto colour = get_colour(sq);
+    const auto colour = square::get_colour(sq);
     if (colour != player_to_move_) continue; // Ignore pieces of the wrong colour.
 
     // Generate moves for this piece.
@@ -154,26 +210,19 @@ std::vector<Move> BoardImpl::get_moves() const
     switch (pt)
     {
       case PieceType::PAWN:
-        if (player_to_move_ == Colour::WHITE)
-        {
-          moves.push_back(create_move(loc, loc + padded_board_side));
-        }
-        else
-        {
-          moves.push_back(create_move(loc, loc - padded_board_side));
-        }
+        add_pawn_moves(loc, moves);
         break;
       case PieceType::KNIGHT: case PieceType::KING:
         for (const auto offset : offsets)
         {
           if (offset == 0) break;
           int target = loc + offset;
-          const auto target_sq = squares_[target];
-          if (!on_board(target_sq)) continue;
-          if (get_pt(target_sq) != PieceType::NONE &&
-              get_colour(target_sq) == player_to_move_) continue;
+          target_sq = squares_[target];
+          if (!square::on_board(target_sq)) continue;
+          if (square::get_pt(target_sq) != PieceType::NONE &&
+              square::get_colour(target_sq) == player_to_move_) continue;
 
-          moves.push_back(create_move(loc, target));
+          moves.push_back(move::create(loc, target));
         }
         break;
       case PieceType::ROOK: case PieceType::QUEEN:
@@ -181,12 +230,12 @@ std::vector<Move> BoardImpl::get_moves() const
         {
           if (offset == 0) break;
           int target = loc + offset;
-          auto target_sq = squares_[target];
-          while (on_board(target_sq))
+          target_sq = squares_[target];
+          while (square::on_board(target_sq))
           {
-            if (get_pt(target_sq) != PieceType::NONE &&
-                get_colour(target_sq) == player_to_move_) break;
-            moves.push_back(create_move(loc, target));
+            if (square::get_pt(target_sq) != PieceType::NONE &&
+                square::get_colour(target_sq) == player_to_move_) break;
+            moves.push_back(move::create(loc, target));
             target += offset;
             target_sq = squares_[target];
           }
@@ -248,7 +297,7 @@ void BoardImpl::make_move(int start, int end)
   // Is there a capture?
   const auto& sq = squares_[to_padded(end)];
   auto cap = static_cast<PieceType>((sq & 0xFF00) >> 8);
-  Move move = create_move(to_padded(start), to_padded(end), cap);
+  Move move = move::create(to_padded(start), to_padded(end), cap);
   make_move(move);
 }
 
