@@ -13,3 +13,7 @@ set_target_properties(engine
   PROPERTIES
     LANGUAGE CXX
     CXX_STANDARD 17)
+
+target_compile_options(engine
+  PRIVATE
+    -g)

@@ -1,5 +1,6 @@
 #include "engine/engine.h"
 
+#include <algorithm>
 #include <array>
 #include <cassert>
 
@@ -13,8 +14,8 @@ namespace
 using Square = std::uint32_t;
 
 bool on_board(Square sq) { return sq & 0xFF; }
-PieceType get_pt(Square sq) { return static_cast<PieceType>((sq & 0xFF00) >> 8); }
-Colour get_colour(Square sq) { return static_cast<Colour>((sq & 0xFF0000) >> 16); }
+la::PieceType get_pt(Square sq) { return static_cast<la::PieceType>((sq & 0xFF00) >> 8); }
+la::Colour get_colour(Square sq) { return static_cast<la::Colour>((sq & 0xFF0000) >> 16); }
 
 }
 
@@ -73,17 +74,17 @@ private:
   Colour player_to_move_;
   std::array<Square, padded_board_area> squares_;
 
-  static constexpr int to_padded(int r, int c) const
+  static constexpr int to_padded(int r, int c)
   {
     return (r + 2) * padded_board_side + c + 2;
   }
 
-  static constexpr int to_padded(int loc) const
+  static constexpr int to_padded(int loc)
   {
     return to_padded(loc / board_side, loc % board_side);
   }
 
-  static constexpr int from_padded(int loc) const
+  static constexpr int from_padded(int loc)
   {
     int padded_row = loc / padded_board_side;
     int padded_col = loc % padded_board_side;
@@ -134,68 +135,88 @@ BoardImpl::BoardImpl() : player_to_move_(Colour::WHITE)
 
 std::vector<Move> BoardImpl::get_moves() const
 {
-  // TODO
-  return std::vector<Move>();
+  // TODO: Finish implementing pawn moves and checks etc.
+  std::vector<Move> moves;
+  for (int loc = 0; loc < padded_board_area; loc++)
+  {
+    const Square sq = squares_[loc];
+    if (!(sq & 0xFF)) continue; // Ignore padding locations.
+
+    const auto pt = get_pt(sq);
+    if (pt == PieceType::NONE) continue; // Ignore empty locations.
+
+    const auto colour = get_colour(sq);
+    if (colour != player_to_move_) continue; // Ignore pieces of the wrong colour.
+
+    // Generate moves for this piece.
+    const auto& offsets = piece_offsets[static_cast<int>(pt)];
+
+    switch (pt)
+    {
+      case PieceType::PAWN:
+        if (player_to_move_ == Colour::WHITE)
+        {
+          moves.push_back(create_move(loc, loc + padded_board_side));
+        }
+        else
+        {
+          moves.push_back(create_move(loc, loc - padded_board_side));
+        }
+        break;
+      case PieceType::KNIGHT: case PieceType::KING:
+        for (const auto offset : offsets)
+        {
+          if (offset == 0) break;
+          int target = loc + offset;
+          const auto target_sq = squares_[target];
+          if (!on_board(target_sq)) continue;
+          if (get_pt(target_sq) != PieceType::NONE &&
+              get_colour(target_sq) == player_to_move_) continue;
+
+          moves.push_back(create_move(loc, target));
+        }
+        break;
+      case PieceType::ROOK: case PieceType::QUEEN:
+        for (const auto offset : offsets)
+        {
+          if (offset == 0) break;
+          int target = loc + offset;
+          auto target_sq = squares_[target];
+          while (on_board(target_sq))
+          {
+            if (get_pt(target_sq) != PieceType::NONE &&
+                get_colour(target_sq) == player_to_move_) break;
+            moves.push_back(create_move(loc, target));
+            target += offset;
+            target_sq = squares_[target];
+          }
+        }
+        break;
+    }
+  }
+
+  return moves;
 }
 
 std::vector<int> BoardImpl::get_targets_for_piece(int row, int col) const
 {
-  // TODO: Finish implementing pawn moves and checks etc.
   int loc = to_padded(row, col);
-  const Square sq = squares_[loc];
-  assert(sq & 0xFF); // Not part of the padding.
-  const auto pt = static_cast<PieceType>((sq & 0xFF00) >> 8);
-  assert(pt != PieceType::NONE); // The square must be occupied.
 
-  // Does the player to move own this piece?
+  // Get all moves and filter them based on start location.
   std::vector<int> targets;
-  if (get_col(sq) != player_to_move_)
-  {
-    return targets;
-  }
+  const auto moves = get_moves();
 
-  const auto& offsets = piece_offsets[static_cast<int>(pt)];
-
-  switch (pt)
+  for (const auto move : moves)
   {
-    case PieceType::PAWN:
-      if (player_to_move_ == Colour::WHITE)
+    int start = move & 0xFF;
+    if (start == loc)
+    {
+      int end = from_padded((move >> 8) & 0xFF);
+      if (std::find(std::cbegin(targets), std::cend(targets), end) == std::cend(targets))
       {
-        targets.push_back(from_padded(loc + padded_board_side));
+        targets.push_back(end);
       }
-      else
-      {
-        targets.push_back(from_padded(loc - padded_board_side));
-      }
-      break;
-    case PieceType::KNIGHT: case PieceType::KING:
-      for (const auto offset : offsets)
-      {
-        if (offset == 0) break;
-        int target = loc + offset;
-        const auto target_sq = squares_[target];
-        if (!on_board(target_sq)) continue;
-        if (get_pt(target_sq) != PieceType::NONE &&
-            get_col(target_sq) == player_to_move_) continue;
-        targets.push_back(from_padded(target));
-      }
-      break;
-    case PieceType::ROOK: case PieceType::QUEEN:
-      for (const auto offset : offsets)
-      {
-        if (offset == 0) break;
-        int target = loc + offset;
-        auto target_sq = squares_[target];
-        while (on_board(target_sq))
-        {
-          if (get_pt(target_sq) != PieceType::NONE &&
-              get_col(target_sq) == player_to_move_) continue;
-          targets.push_back(from_padded(target));
-          target += offset;
-          target_sq = squares_[target];
-        }
-      }
-      break;
+    }
   }
 
   return targets;
