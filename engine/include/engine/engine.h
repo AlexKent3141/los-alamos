@@ -10,8 +10,8 @@ namespace la
 
 enum class Colour : std::uint8_t
 {
-  WHITE,
-  BLACK
+  WHITE = 0,
+  BLACK = 1
 };
 
 enum class PieceType : std::uint8_t

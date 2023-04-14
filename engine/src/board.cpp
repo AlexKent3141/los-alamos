@@ -86,7 +86,8 @@ private:
   };
 
   Colour player_to_move_;
-  std::array<Square, padded_board_area> squares_;
+  mutable std::array<Square, padded_board_area> squares_;
+  std::array<int, 2> king_locations_;
 
   static constexpr int to_padded(int r, int c)
   {
@@ -105,6 +106,7 @@ private:
     return (padded_row - 2) * board_side + padded_col - 2;
   }
 
+  bool will_be_in_check(int, int) const;
   void add_pawn_moves(int, std::vector<Move>&) const;
 };
 
@@ -147,6 +149,85 @@ BoardImpl::BoardImpl() : player_to_move_(Colour::WHITE)
     set_square_properties(squares_[to_padded(4, c)], Colour::BLACK, PieceType::PAWN);
     set_square_properties(squares_[to_padded(5, c)], Colour::BLACK, backrank[c]);
   }
+
+  king_locations_ = { to_padded(0, 3), to_padded(5, 3) };
+}
+
+bool BoardImpl::will_be_in_check(int start, int end) const
+{
+  int in_check = false;
+
+  int king_loc = king_locations_[static_cast<int>(player_to_move_)];
+  int left_pawn_loc, right_pawn_loc;
+  const Square start_sq = squares_[start];
+  const auto pt = square::get_pt(start_sq);
+  if (pt == PieceType::KING)
+  {
+    king_loc = end;
+  }
+
+  // Clear the start and fill the end.
+  const Square end_sq = squares_[end];
+  squares_[start] = 0x1; // Empty and not padding.
+  squares_[end] = start_sq;
+
+  // We've effectively made the move. Now check if the king's square is attacked.
+  Square target_sq;
+  for (auto target_pt : { PieceType::KNIGHT, PieceType::KING, PieceType::ROOK, PieceType::QUEEN})
+  {
+    for (const auto offset : piece_offsets[static_cast<int>(target_pt)])
+    {
+      if (offset == 0) break;
+      int target_loc = king_loc + offset;
+      target_sq = squares_[target_loc];
+      while (square::on_board(target_sq))
+      {
+        auto pt = square::get_pt(target_sq);
+        if (pt == target_pt &&
+            square::get_colour(target_sq) != player_to_move_)
+        {
+          in_check = true;
+          goto check_end;
+        }
+        if (pt != PieceType::NONE) break;
+        if (target_pt == PieceType::KNIGHT || target_pt == PieceType::KING) break;
+        target_loc += offset;
+        target_sq = squares_[target_loc];
+      }
+    }
+  }
+
+  // Check for pawn checks.
+  left_pawn_loc = king_loc - 1;
+  left_pawn_loc += player_to_move_ == Colour::WHITE ?  padded_board_side : -padded_board_side;
+
+  target_sq = squares_[left_pawn_loc];
+  if (square::on_board(target_sq) &&
+      square::get_pt(target_sq) == PieceType::PAWN &&
+      square::get_colour(target_sq) != player_to_move_)
+  {
+    in_check = true;
+    goto check_end;
+  }
+
+  right_pawn_loc = king_loc + 1;
+  right_pawn_loc += player_to_move_ == Colour::WHITE ?  padded_board_side : -padded_board_side;
+
+  target_sq = squares_[right_pawn_loc];
+  if (square::on_board(target_sq) &&
+      square::get_pt(target_sq) == PieceType::PAWN &&
+      square::get_colour(target_sq) != player_to_move_)
+  {
+    in_check = true;
+    goto check_end;
+  }
+
+check_end:
+  // Revert.
+  squares_[start] = start_sq;
+  squares_[end] = end_sq;
+
+  return in_check;
 }
 
 void BoardImpl::add_pawn_moves(int loc, std::vector<Move>& moves) const
@@ -157,7 +238,7 @@ void BoardImpl::add_pawn_moves(int loc, std::vector<Move>& moves) const
   // Can we move forward to an empty location?
   const int forward = loc + forward_offset;
   Square target_sq = squares_[forward];
-  if (square::get_pt(target_sq) == PieceType::NONE)
+  if (square::get_pt(target_sq) == PieceType::NONE && !will_be_in_check(loc, forward))
   {
     moves.push_back(move::create(loc, forward));
   }
@@ -169,7 +250,9 @@ void BoardImpl::add_pawn_moves(int loc, std::vector<Move>& moves) const
   if (target_sq & 0xFF)
   {
     auto pt = square::get_pt(target_sq);
-    if (pt != PieceType::NONE && square::get_colour(target_sq) != player_to_move_)
+    if (pt != PieceType::NONE &&
+        square::get_colour(target_sq) != player_to_move_ &&
+        !will_be_in_check(loc, left_diag))
     {
       moves.push_back(move::create(loc, left_diag, pt));
     }
@@ -181,7 +264,9 @@ void BoardImpl::add_pawn_moves(int loc, std::vector<Move>& moves) const
   if (target_sq & 0xFF)
   {
     auto pt = square::get_pt(target_sq);
-    if (pt != PieceType::NONE && square::get_colour(target_sq) != player_to_move_)
+    if (pt != PieceType::NONE &&
+        square::get_colour(target_sq) != player_to_move_ &&
+        !will_be_in_check(loc, right_diag))
     {
       moves.push_back(move::create(loc, right_diag, pt));
     }
@@ -221,7 +306,7 @@ std::vector<Move> BoardImpl::get_moves() const
           if (!square::on_board(target_sq)) continue;
           if (square::get_pt(target_sq) != PieceType::NONE &&
               square::get_colour(target_sq) == player_to_move_) continue;
-
+          if (will_be_in_check(loc, target)) continue;
           moves.push_back(move::create(loc, target));
         }
         break;
@@ -235,6 +320,7 @@ std::vector<Move> BoardImpl::get_moves() const
           {
             if (square::get_pt(target_sq) != PieceType::NONE &&
                 square::get_colour(target_sq) == player_to_move_) break;
+            if (will_be_in_check(loc, target)) break;
             moves.push_back(move::create(loc, target));
             target += offset;
             target_sq = squares_[target];
@@ -286,6 +372,11 @@ void BoardImpl::make_move(Move move)
 
   end_sq &= 0x00FFFF;
   end_sq |= static_cast<int>(player_to_move_) << 16;
+
+  if ((moving_piece_type >> 8) == static_cast<int>(PieceType::KING))
+  {
+    king_locations_[static_cast<int>(player_to_move_)] = end;
+  }
 
   player_to_move_ = player_to_move_ == Colour::WHITE ? Colour::BLACK : Colour::WHITE;
 }
