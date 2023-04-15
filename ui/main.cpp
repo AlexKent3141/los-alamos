@@ -111,8 +111,18 @@ void LosAlamosApp::run()
   piece_target.control_colour_rgba = 0xFF7070FF;
 
   Board state;
-  int selected_index;
+  int selected_index, target_index;
+  Piece moving_piece;
   std::set<int> piece_targets;
+
+  enum class Screen
+  {
+    BOARD,
+    SELECT_PROMOTION
+  };
+
+  auto screen = Screen::BOARD;
+  PieceType promotion_type;
 
   SDL_Event event;
   SDL_bool stop = SDL_FALSE;
@@ -137,78 +147,122 @@ void LosAlamosApp::run()
 
     punk_begin();
 
-    punk_begin_vertical_layout("1:1:1:1:1:1", PUNK_FILL, PUNK_FILL);
-    for (int r = 5; r >= 0; r--)
+    if (screen == Screen::BOARD)
     {
-      int sq = r & 0x1;
-
-      punk_begin_horizontal_layout("1:1:1:1:1:1", PUNK_FILL, PUNK_FILL);
-      for (int c = 0; c < 6; c++)
+      punk_begin_vertical_layout("1:1:1:1:1:1", PUNK_FILL, PUNK_FILL);
+      for (int r = 5; r >= 0; r--)
       {
-        bool is_target = piece_targets.find(6*r + c) != std::end(piece_targets);
-        const auto piece = state.get_piece(r, c);
-        punk_style style;
-        if (is_target)
-        {
-          style = piece_target;
-        }
-        else
-        {
-          style = (sq & 0x1) ? white_square : black_square;
-        }
+        int sq = r & 0x1;
 
-        ++sq;
-
-        if (!piece)
+        punk_begin_horizontal_layout("1:1:1:1:1:1", PUNK_FILL, PUNK_FILL);
+        for (int c = 0; c < 6; c++)
         {
-          if (!is_target)
+          bool is_target = piece_targets.find(6*r + c) != std::end(piece_targets);
+          const auto piece = state.get_piece(r, c);
+          punk_style style;
+          if (is_target)
           {
-            // Unclickable empty location.
-            punk_label(" ", &style);
+            style = piece_target;
           }
           else
           {
-            // Clickable empty location.
-            if (punk_button(" ", &style))
-            {
-              int target_index = 6*r + c;
-              state.make_move(selected_index, target_index);
-              piece_targets.clear();
-            }
+            style = (sq & 0x1) ? white_square : black_square;
           }
-        }
-        else
-        {
-          if (punk_picture_button(image_path(*piece).c_str(), &style))
+
+          ++sq;
+
+          if (!piece)
           {
-            if (is_target)
+            if (!is_target)
             {
-              // Actually make the move.
-              int target_index = 6*r + c;
-              state.make_move(selected_index, target_index);
-              piece_targets.clear();
+              // Unclickable empty location.
+              punk_label(" ", &style);
             }
             else
             {
-              // Selected a new piece.
-              selected_index = 6*r + c;
-
-              // Store the targets.
-              const auto targets = state.get_targets_for_piece(r, c);
-              piece_targets.clear();
-              for (const auto target : targets)
+              // Clickable empty location.
+              if (punk_button(" ", &style))
               {
-                piece_targets.insert(target);
+                piece_targets.clear();
+                target_index = 6*r + c;
+                if (moving_piece.type == PieceType::PAWN && (r == 0 || r == 5))
+                {
+                  screen = Screen::SELECT_PROMOTION;
+                }
+                else
+                {
+                  state.make_move(selected_index, target_index);
+                }
+              }
+            }
+          }
+          else
+          {
+            if (punk_picture_button(image_path(*piece).c_str(), &style))
+            {
+              if (is_target)
+              {
+                // Actually make the move.
+                piece_targets.clear();
+                target_index = 6*r + c;
+                if (moving_piece.type == PieceType::PAWN && (r == 0 || r == 5))
+                {
+                  screen = Screen::SELECT_PROMOTION;
+                }
+                else
+                {
+                  state.make_move(selected_index, target_index);
+                }
+              }
+              else
+              {
+                // Selected a new piece.
+                selected_index = 6*r + c;
+                moving_piece = *piece;
+
+                // Store the targets.
+                const auto targets = state.get_targets_for_piece(r, c);
+                piece_targets.clear();
+                for (const auto target : targets)
+                {
+                  piece_targets.insert(target);
+                }
               }
             }
           }
         }
+
+        punk_end_layout();
       }
 
       punk_end_layout();
     }
+    else
+    {
+      // Display pawn promotion options.
+      punk_begin_vertical_layout("1:1:1", PUNK_FILL, PUNK_FILL);
 
-    punk_end_layout();
+      punk_label("Pick a promotion type:", NULL);
+
+      punk_begin_horizontal_layout("1:1:1", PUNK_FILL, PUNK_FILL);
+      Piece promo_piece { moving_piece.colour, PieceType::NONE };
+      for (const auto pt : { PieceType::KNIGHT, PieceType::ROOK, PieceType::QUEEN })
+      {
+        promo_piece.type = pt;
+        if (punk_picture_button(image_path(promo_piece).c_str(), NULL))
+        {
+          // We now know the promotion type so can make the move.
+          state.make_move(selected_index, target_index, pt);
+          screen = Screen::BOARD;
+        }
+      }
+
+      punk_end_layout();
+
+      punk_skip_layout_widget();
+
+      punk_end_layout();
+    }
 
     punk_end();
 

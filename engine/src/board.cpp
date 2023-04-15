@@ -54,7 +54,7 @@ public:
   std::vector<int> get_targets_for_piece(int, int) const;
   Colour player_to_move() const { return player_to_move_; }
   void make_move(Move);
-  void make_move(int, int);
+  void make_move(int, int, PieceType);
   void undo_move(Move);
   std::optional<Piece> get_piece(int, int) const;
 
@@ -378,7 +378,16 @@ void BoardImpl::make_move(Move move)
   const int moving_piece_type = start_sq & 0xFF00;
   start_sq &= ~0xFFFF00;
   end_sq &= ~0xFF00;
-  end_sq |= moving_piece_type;
+
+  const auto promo_type = move::get_promo(move);
+  if (promo_type != PieceType::NONE)
+  {
+    end_sq |= static_cast<int>(promo_type) << 8;
+  }
+  else
+  {
+    end_sq |= moving_piece_type;
+  }
 
   end_sq &= 0x00FFFF;
   end_sq |= static_cast<int>(player_to_move_) << 16;
@@ -391,14 +400,11 @@ void BoardImpl::make_move(Move move)
   player_to_move_ = player_to_move_ == Colour::WHITE ? Colour::BLACK : Colour::WHITE;
 }
 
-void BoardImpl::make_move(int start, int end)
+void BoardImpl::make_move(int start, int end, PieceType promo)
 {
-  // TODO: Implement promotions.
-  // Create a move.
-  // Is there a capture?
   const auto& sq = squares_[to_padded(end)];
   auto cap = static_cast<PieceType>((sq & 0xFF00) >> 8);
-  Move move = move::create(to_padded(start), to_padded(end), cap);
+  Move move = move::create(to_padded(start), to_padded(end), cap, promo);
   make_move(move);
 }
 
@@ -450,9 +456,9 @@ void Board::make_move(Move move)
   impl_->make_move(move);
 }
 
-void Board::make_move(int start, int end)
+void Board::make_move(int start, int end, PieceType promo)
 {
-  impl_->make_move(start, end);
+  impl_->make_move(start, end, promo);
 }
 
 void Board::undo_move(Move move)
