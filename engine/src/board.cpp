@@ -318,8 +318,18 @@ std::vector<Move> BoardImpl::get_moves() const
           target_sq = squares_[target];
           while (square::on_board(target_sq))
           {
-            if (square::get_pt(target_sq) != PieceType::NONE &&
-                square::get_colour(target_sq) == player_to_move_) break;
+            if (square::get_pt(target_sq) != PieceType::NONE)
+            {
+              if (square::get_colour(target_sq) != player_to_move_)
+              {
+                // Capture move.
+                if (will_be_in_check(loc, target)) break;
+                moves.push_back(move::create(loc, target));
+              }
+
+              break;
+            }
+
             if (will_be_in_check(loc, target)) break;
             moves.push_back(move::create(loc, target));
             target += offset;
