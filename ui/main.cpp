@@ -138,15 +138,15 @@ void LosAlamosApp::run()
     punk_begin();
 
     punk_begin_vertical_layout("1:1:1:1:1:1", PUNK_FILL, PUNK_FILL);
-    for (int r = 0; r < 6; r++)
+    for (int r = 5; r >= 0; r--)
     {
       int sq = r & 0x1;
 
       punk_begin_horizontal_layout("1:1:1:1:1:1", PUNK_FILL, PUNK_FILL);
       for (int c = 0; c < 6; c++)
       {
-        bool is_target = piece_targets.find(6*(5 - r) + c) != std::end(piece_targets);
-        const auto piece = state.get_piece(5 - r, c);
+        bool is_target = piece_targets.find(6*r + c) != std::end(piece_targets);
+        const auto piece = state.get_piece(r, c);
         punk_style style;
         if (is_target)
         {
@@ -171,7 +171,7 @@ void LosAlamosApp::run()
             // Clickable empty location.
             if (punk_button(" ", &style))
             {
-              int target_index = 6*(5 - r) + c;
+              int target_index = 6*r + c;
               state.make_move(selected_index, target_index);
               piece_targets.clear();
             }
@@ -184,17 +184,17 @@ void LosAlamosApp::run()
             if (is_target)
             {
               // Actually make the move.
-              int target_index = 6*(5 - r) + c;
+              int target_index = 6*r + c;
               state.make_move(selected_index, target_index);
               piece_targets.clear();
             }
             else
             {
               // Selected a new piece.
-              selected_index = 6*(5 - r) + c;
+              selected_index = 6*r + c;
 
               // Store the targets.
-              const auto targets = state.get_targets_for_piece(5 - r, c);
+              const auto targets = state.get_targets_for_piece(r, c);
               piece_targets.clear();
               for (const auto target : targets)
               {
