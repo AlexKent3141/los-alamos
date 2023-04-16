@@ -30,6 +30,7 @@ int get_start(la::Move m) { return m & 0xFF; }
 int get_end(la::Move m) { return (m & 0xFF00) >> 8; }
 la::PieceType get_cap(la::Move m) { return static_cast<la::PieceType>((m & 0xFF0000) >> 16); }
 la::PieceType get_promo(la::Move m) { return static_cast<la::PieceType>((m & 0xFF000000) >> 24); }
+void set_promo(la::Move& m, la::PieceType pt) { m |= static_cast<int>(pt) << 24; }
 
 la::Move create(
   int start,
@@ -232,6 +233,19 @@ check_end:
 
 void BoardImpl::add_pawn_moves(int loc, std::vector<Move>& moves) const
 {
+  const auto add_promotions = [&moves] (const Move& move)
+  {
+    Move knight_promo(move);
+    move::set_promo(knight_promo, PieceType::KNIGHT);
+    moves.push_back(knight_promo);
+    Move rook_promo(move);
+    move::set_promo(rook_promo, PieceType::ROOK);
+    moves.push_back(rook_promo);
+    Move queen_promo(move);
+    move::set_promo(queen_promo, PieceType::QUEEN);
+    moves.push_back(queen_promo);
+  };
+
   const int forward_offset =
     player_to_move_ == Colour::WHITE ?  padded_board_side : -padded_board_side;
 
@@ -240,7 +254,15 @@ void BoardImpl::add_pawn_moves(int loc, std::vector<Move>& moves) const
   Square target_sq = squares_[forward];
   if (square::get_pt(target_sq) == PieceType::NONE && !will_be_in_check(loc, forward))
   {
-    moves.push_back(move::create(loc, forward));
+    const auto move = move::create(loc, forward);
+    if (forward < 3 * padded_board_side || forward >= 7 * padded_board_side)
+    {
+      add_promotions(move);
+    }
+    else
+    {
+      moves.push_back(move);
+    }
   }
 
   // Can we capture diagonally?
@@ -254,7 +276,15 @@ void BoardImpl::add_pawn_moves(int loc, std::vector<Move>& moves) const
         square::get_colour(target_sq) != player_to_move_ &&
         !will_be_in_check(loc, left_diag))
     {
-      moves.push_back(move::create(loc, left_diag, pt));
+      const auto move = move::create(loc, left_diag, pt);
+      if (left_diag < 3 * padded_board_side || left_diag >= 7 * padded_board_side)
+      {
+        add_promotions(move);
+      }
+      else
+      {
+        moves.push_back(move);
+      }
     }
   }
 
@@ -268,7 +298,15 @@ void BoardImpl::add_pawn_moves(int loc, std::vector<Move>& moves) const
         square::get_colour(target_sq) != player_to_move_ &&
         !will_be_in_check(loc, right_diag))
     {
-      moves.push_back(move::create(loc, right_diag, pt));
+      const auto move = move::create(loc, right_diag, pt);
+      if (right_diag < 3 * padded_board_side || right_diag >= 7 * padded_board_side)
+      {
+        add_promotions(move);
+      }
+      else
+      {
+        moves.push_back(move);
+      }
     }
   }
 }
@@ -307,7 +345,7 @@ std::vector<Move> BoardImpl::get_moves() const
           if (square::get_pt(target_sq) != PieceType::NONE &&
               square::get_colour(target_sq) == player_to_move_) continue;
           if (will_be_in_check(loc, target)) continue;
-          moves.push_back(move::create(loc, target));
+          moves.push_back(move::create(loc, target, square::get_pt(target_sq)));
         }
         break;
       case PieceType::ROOK: case PieceType::QUEEN:
@@ -324,7 +362,7 @@ std::vector<Move> BoardImpl::get_moves() const
               {
                 // Capture move.
                 if (will_be_in_check(loc, target)) break;
-                moves.push_back(move::create(loc, target));
+                moves.push_back(move::create(loc, target, square::get_pt(target_sq)));
               }
 
               break;
