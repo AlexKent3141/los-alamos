@@ -156,7 +156,7 @@ BoardImpl::BoardImpl() : player_to_move_(Colour::WHITE)
 
 bool BoardImpl::will_be_in_check(int start, int end) const
 {
-  int in_check = false;
+  bool in_check = false;
 
   int king_loc = king_locations_[static_cast<int>(player_to_move_)];
   int left_pawn_loc, right_pawn_loc;
@@ -313,7 +313,6 @@ void BoardImpl::add_pawn_moves(int loc, std::vector<Move>& moves) const
 
 std::vector<Move> BoardImpl::get_moves() const
 {
-  // TODO: Finish implementing pawn moves and checks etc.
   Square target_sq;
   std::vector<Move> moves;
   for (int loc = 0; loc < padded_board_area; loc++)
@@ -368,8 +367,10 @@ std::vector<Move> BoardImpl::get_moves() const
               break;
             }
 
-            if (will_be_in_check(loc, target)) break;
-            moves.push_back(move::create(loc, target));
+            if (!will_be_in_check(loc, target))
+            {
+              moves.push_back(move::create(loc, target));
+            }
             target += offset;
             target_sq = squares_[target];
           }
@@ -407,15 +408,15 @@ std::vector<int> BoardImpl::get_targets_for_piece(int row, int col) const
 
 void BoardImpl::make_move(Move move)
 {
-  int start = move & 0xFF;
-  int end = (move >> 8) & 0xFF;
+  const int start = move::get_start(move);
+  const int end = move::get_end(move);
 
   auto& start_sq = squares_[start];
   auto& end_sq = squares_[end];
 
   const int moving_piece_type = start_sq & 0xFF00;
-  start_sq &= ~0xFFFF00;
-  end_sq &= ~0xFF00;
+  start_sq &= 0xFF;
+  end_sq &= 0xFF;
 
   const auto promo_type = move::get_promo(move);
   if (promo_type != PieceType::NONE)
@@ -427,7 +428,6 @@ void BoardImpl::make_move(Move move)
     end_sq |= moving_piece_type;
   }
 
-  end_sq &= 0x00FFFF;
   end_sq |= static_cast<int>(player_to_move_) << 16;
 
   if ((moving_piece_type >> 8) == static_cast<int>(PieceType::KING))
@@ -448,7 +448,43 @@ void BoardImpl::make_move(int start, int end, PieceType promo)
 
 void BoardImpl::undo_move(Move move)
 {
-  // TODO
+  const auto other_player = player_to_move_;
+  player_to_move_ = player_to_move_ == Colour::WHITE ? Colour::BLACK : Colour::WHITE;
+
+  const int start = move::get_start(move);
+  const int end = move::get_end(move);
+
+  auto& start_sq = squares_[start];
+  auto& end_sq = squares_[end];
+
+  const int moving_piece_type = end_sq & 0xFF00;
+  start_sq &= 0xFF;
+  end_sq &= 0xFF;
+
+  const auto promo_type = move::get_promo(move);
+  if (promo_type != PieceType::NONE)
+  {
+    start_sq |= static_cast<int>(PieceType::PAWN) << 8;
+  }
+  else
+  {
+    start_sq |= moving_piece_type;
+  }
+
+  // Set the colour.
+  start_sq |= static_cast<int>(player_to_move_) << 16;
+
+  const auto cap = move::get_cap(move);
+  if (cap != PieceType::NONE)
+  {
+    end_sq |= static_cast<int>(cap) << 8;
+    end_sq |= static_cast<int>(other_player) << 16;
+  }
+
+  if ((moving_piece_type >> 8) == static_cast<int>(PieceType::KING))
+  {
+    king_locations_[static_cast<int>(player_to_move_)] = start;
+  }
 }
 
 std::optional<Piece> BoardImpl::get_piece(int row, int col) const
