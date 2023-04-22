@@ -17,22 +17,30 @@ using Square = std::uint32_t;
 namespace square
 {
 
-bool on_board(Square sq) { return sq & 0xFF; }
-la::PieceType get_pt(Square sq) { return static_cast<la::PieceType>((sq & 0xFF00) >> 8); }
-la::Colour get_colour(Square sq) { return static_cast<la::Colour>((sq & 0xFF0000) >> 16); }
+inline bool on_board(Square sq)
+{ return sq & 0xFF; }
+inline la::PieceType get_pt(Square sq)
+{ return static_cast<la::PieceType>((sq & 0xFF00) >> 8); }
+inline la::Colour get_colour(Square sq)
+{ return static_cast<la::Colour>((sq & 0xFF0000) >> 16); }
 
 }
 
 namespace move
 {
 
-int get_start(la::Move m) { return m & 0xFF; }
-int get_end(la::Move m) { return (m & 0xFF00) >> 8; }
-la::PieceType get_cap(la::Move m) { return static_cast<la::PieceType>((m & 0xFF0000) >> 16); }
-la::PieceType get_promo(la::Move m) { return static_cast<la::PieceType>((m & 0xFF000000) >> 24); }
-void set_promo(la::Move& m, la::PieceType pt) { m |= static_cast<int>(pt) << 24; }
+inline int get_start(la::Move m)
+{ return m & 0xFF; }
+inline int get_end(la::Move m)
+{ return (m & 0xFF00) >> 8; }
+inline la::PieceType get_cap(la::Move m)
+{ return static_cast<la::PieceType>((m & 0xFF0000) >> 16); }
+inline la::PieceType get_promo(la::Move m)
+{ return static_cast<la::PieceType>((m & 0xFF000000) >> 24); }
+inline void set_promo(la::Move& m, la::PieceType pt)
+{ m |= static_cast<int>(pt) << 24; }
 
-la::Move create(
+inline la::Move create(
   int start,
   int end,
   la::PieceType cap = la::PieceType::NONE,
@@ -329,53 +337,42 @@ std::vector<Move> BoardImpl::get_moves() const
     // Generate moves for this piece.
     const auto& offsets = piece_offsets[static_cast<int>(pt)];
 
-    switch (pt)
+    if (pt == PieceType::PAWN)
     {
-      case PieceType::PAWN:
-        add_pawn_moves(loc, moves);
-        break;
-      case PieceType::KNIGHT: case PieceType::KING:
-        for (const auto offset : offsets)
+      add_pawn_moves(loc, moves);
+    }
+    else
+    {
+      for (const auto offset : offsets)
+      {
+        if (offset == 0) break;
+        int target = loc + offset;
+        target_sq = squares_[target];
+        while (square::on_board(target_sq))
         {
-          if (offset == 0) break;
-          int target = loc + offset;
-          target_sq = squares_[target];
-          if (!square::on_board(target_sq)) continue;
-          if (square::get_pt(target_sq) != PieceType::NONE &&
-              square::get_colour(target_sq) == player_to_move_) continue;
-          if (will_be_in_check(loc, target)) continue;
-          moves.push_back(move::create(loc, target, square::get_pt(target_sq)));
-        }
-        break;
-      case PieceType::ROOK: case PieceType::QUEEN:
-        for (const auto offset : offsets)
-        {
-          if (offset == 0) break;
-          int target = loc + offset;
-          target_sq = squares_[target];
-          while (square::on_board(target_sq))
+          if (square::get_pt(target_sq) != PieceType::NONE)
           {
-            if (square::get_pt(target_sq) != PieceType::NONE)
+            if (square::get_colour(target_sq) != player_to_move_)
             {
-              if (square::get_colour(target_sq) != player_to_move_)
-              {
-                // Capture move.
-                if (will_be_in_check(loc, target)) break;
-                moves.push_back(move::create(loc, target, square::get_pt(target_sq)));
-              }
-
-              break;
+              // Capture move.
+              if (will_be_in_check(loc, target)) break;
+              moves.push_back(move::create(loc, target, square::get_pt(target_sq)));
             }
 
-            if (!will_be_in_check(loc, target))
-            {
-              moves.push_back(move::create(loc, target));
-            }
-            target += offset;
-            target_sq = squares_[target];
+            break;
           }
+
+          if (!will_be_in_check(loc, target))
+          {
+            moves.push_back(move::create(loc, target));
+          }
+
+          if (pt == PieceType::KNIGHT || pt == PieceType::KING) break;
+
+          target += offset;
+          target_sq = squares_[target];
         }
-        break;
+      }
     }
   }
 
