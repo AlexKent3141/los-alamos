@@ -7,7 +7,8 @@ target_include_directories(engine
 
 target_sources(engine
   PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/board.cpp)
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/board.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/eval.h)
 
 set_target_properties(engine
   PROPERTIES

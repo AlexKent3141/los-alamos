@@ -1,8 +1,11 @@
 #include "engine/engine.h"
 
+#include "eval.h"
+
 #include <algorithm>
 #include <array>
 #include <cassert>
+#include <stack>
 
 namespace
 {
@@ -21,8 +24,18 @@ inline bool on_board(Square sq)
 { return sq & 0xFF; }
 inline la::PieceType get_pt(Square sq)
 { return static_cast<la::PieceType>((sq & 0xFF00) >> 8); }
+inline void set_pt(Square& sq, la::PieceType pt)
+{ sq |= (static_cast<int>(pt) << 8); }
 inline la::Colour get_colour(Square sq)
 { return static_cast<la::Colour>((sq & 0xFF0000) >> 16); }
+inline void set_colour(Square& sq, la::Colour col)
+{ sq |= (static_cast<int>(col) << 16); }
+
+inline bool is_pawn(Square sq)
+{
+  const la::PieceType pt = get_pt(sq);
+  return pt == la::PieceType::PAWN_WHITE || pt == la::PieceType::PAWN_BLACK;
+}
 
 }
 
@@ -65,6 +78,7 @@ public:
   void make_move(Move);
   void make_move(int, int, PieceType);
   void undo_move(Move);
+  int score() const { return scores_.top(); }
   std::optional<Piece> get_piece(int, int) const;
 
 private:
@@ -73,12 +87,16 @@ private:
   static constexpr int padded_board_area = padded_board_side * padded_board_side;
 
   // Padded offsets for each piece's moves.
-  static constexpr std::array<std::array<int, 8>, 6> piece_offsets =
+  static constexpr std::array<
+    std::array<int, 8>,
+    static_cast<int>(PieceType::NUM_PIECE_TYPES)> piece_offsets =
   {
     std::array<int, 8>
     { 0, 0, 0, 0, 0, 0, 0, 0 },
     std::array<int, 8>
     { padded_board_side, 0, 0, 0, 0, 0, 0, 0 },
+    std::array<int, 8>
+    { -padded_board_side, 0, 0, 0, 0, 0, 0, 0 },
     std::array<int, 8>
     { 2 * padded_board_side + 1, 2 * padded_board_side - 1,
       padded_board_side + 2, padded_board_side - 2,
@@ -97,6 +115,7 @@ private:
   Colour player_to_move_;
   mutable std::array<Square, padded_board_area> squares_;
   std::array<int, 2> king_locations_;
+  std::stack<int> scores_;
 
   static constexpr int to_padded(int r, int c)
   {
@@ -124,10 +143,19 @@ BoardImpl::BoardImpl() : player_to_move_(Colour::WHITE)
   // Start off by marking all squares as being part of the padding.
   squares_.fill(0);
 
-  static constexpr auto set_square_properties = [] (Square& sq, Colour col, PieceType pt)
+  int score = 0;
+
+  const auto set_square_properties = [&] (int loc, Colour col, PieceType pt)
   {
-    sq |= static_cast<std::uint8_t>(pt) << 8;
-    sq |= static_cast<std::uint8_t>(col) << 16;
+    Square& sq = squares_[loc];
+    square::set_pt(sq, pt);
+    square::set_colour(sq, col);
+
+    const int piece_score =
+      eval::piece_scores[static_cast<int>(pt)] +
+      eval::square_scores[static_cast<int>(pt)][loc];
+
+    score += col == Colour::WHITE ? piece_score : -piece_score;
   };
 
   // Make a pass where we mark squares that are on the board.
@@ -153,13 +181,15 @@ BoardImpl::BoardImpl() : player_to_move_(Colour::WHITE)
 
   for (int c = 0; c < 6; c++)
   {
-    set_square_properties(squares_[to_padded(0, c)], Colour::WHITE, backrank[c]);
-    set_square_properties(squares_[to_padded(1, c)], Colour::WHITE, PieceType::PAWN);
-    set_square_properties(squares_[to_padded(4, c)], Colour::BLACK, PieceType::PAWN);
-    set_square_properties(squares_[to_padded(5, c)], Colour::BLACK, backrank[c]);
+    set_square_properties(to_padded(0, c), Colour::WHITE, backrank[c]);
+    set_square_properties(to_padded(1, c), Colour::WHITE, PieceType::PAWN_WHITE);
+    set_square_properties(to_padded(4, c), Colour::BLACK, PieceType::PAWN_BLACK);
+    set_square_properties(to_padded(5, c), Colour::BLACK, backrank[c]);
   }
 
   king_locations_ = { to_padded(0, 3), to_padded(5, 3) };
+
+  scores_.push(score);
 }
 
 bool BoardImpl::will_be_in_check(int start, int end) const
@@ -212,7 +242,7 @@ bool BoardImpl::will_be_in_check(int start, int end) const
 
   target_sq = squares_[left_pawn_loc];
   if (square::on_board(target_sq) &&
-      square::get_pt(target_sq) == PieceType::PAWN &&
+      square::is_pawn(target_sq) &&
       square::get_colour(target_sq) != player_to_move_)
   {
     in_check = true;
@@ -224,7 +254,7 @@ bool BoardImpl::will_be_in_check(int start, int end) const
 
   target_sq = squares_[right_pawn_loc];
   if (square::on_board(target_sq) &&
-      square::get_pt(target_sq) == PieceType::PAWN &&
+      square::is_pawn(target_sq) &&
       square::get_colour(target_sq) != player_to_move_)
   {
     in_check = true;
@@ -337,7 +367,7 @@ std::vector<Move> BoardImpl::get_moves() const
     // Generate moves for this piece.
     const auto& offsets = piece_offsets[static_cast<int>(pt)];
 
-    if (pt == PieceType::PAWN)
+    if (pt == PieceType::PAWN_WHITE || pt == PieceType::PAWN_BLACK)
     {
       add_pawn_moves(loc, moves);
     }
@@ -405,34 +435,48 @@ std::vector<int> BoardImpl::get_targets_for_piece(int row, int col) const
 
 void BoardImpl::make_move(Move move)
 {
+  int next_score = scores_.top();
+
   const int start = move::get_start(move);
   const int end = move::get_end(move);
+  const auto cap_piece_type = move::get_cap(move);
 
   auto& start_sq = squares_[start];
   auto& end_sq = squares_[end];
 
-  const int moving_piece_type = start_sq & 0xFF00;
+  const auto moving_piece_type = square::get_pt(start_sq);
   start_sq &= 0xFF;
   end_sq &= 0xFF;
+
+  next_score -= eval::square_scores[static_cast<int>(moving_piece_type)][start];
 
   const auto promo_type = move::get_promo(move);
   if (promo_type != PieceType::NONE)
   {
-    end_sq |= static_cast<int>(promo_type) << 8;
+    next_score -= eval::piece_scores[static_cast<int>(moving_piece_type)];
+    next_score += eval::piece_scores[static_cast<int>(promo_type)];
+
+    next_score += eval::square_scores[static_cast<int>(promo_type)][end];
+    square::set_pt(end_sq, promo_type);
   }
   else
   {
-    end_sq |= moving_piece_type;
+    next_score += eval::square_scores[static_cast<int>(moving_piece_type)][end];
+    square::set_pt(end_sq, moving_piece_type);
   }
 
-  end_sq |= static_cast<int>(player_to_move_) << 16;
+  square::set_colour(end_sq, player_to_move_);
 
-  if ((moving_piece_type >> 8) == static_cast<int>(PieceType::KING))
+  next_score += eval::piece_scores[static_cast<int>(cap_piece_type)];
+
+  if (moving_piece_type == PieceType::KING)
   {
     king_locations_[static_cast<int>(player_to_move_)] = end;
   }
 
   player_to_move_ = player_to_move_ == Colour::WHITE ? Colour::BLACK : Colour::WHITE;
+
+  scores_.push(-1 * next_score);
 }
 
 void BoardImpl::make_move(int start, int end, PieceType promo)
@@ -454,34 +498,43 @@ void BoardImpl::undo_move(Move move)
   auto& start_sq = squares_[start];
   auto& end_sq = squares_[end];
 
-  const int moving_piece_type = end_sq & 0xFF00;
+  const auto moving_piece_type = square::get_pt(end_sq);
   start_sq &= 0xFF;
   end_sq &= 0xFF;
 
   const auto promo_type = move::get_promo(move);
   if (promo_type != PieceType::NONE)
   {
-    start_sq |= static_cast<int>(PieceType::PAWN) << 8;
+    if (other_player == Colour::WHITE)
+    {
+      square::set_pt(start_sq, PieceType::PAWN_WHITE);
+    }
+    else
+    {
+      square::set_pt(start_sq, PieceType::PAWN_BLACK);
+    }
   }
   else
   {
-    start_sq |= moving_piece_type;
+    square::set_pt(start_sq, moving_piece_type);
   }
 
   // Set the colour.
-  start_sq |= static_cast<int>(player_to_move_) << 16;
+  square::set_colour(start_sq, player_to_move_);
 
   const auto cap = move::get_cap(move);
   if (cap != PieceType::NONE)
   {
-    end_sq |= static_cast<int>(cap) << 8;
-    end_sq |= static_cast<int>(other_player) << 16;
+    square::set_pt(end_sq, cap);
+    square::set_colour(end_sq, other_player);
   }
 
-  if ((moving_piece_type >> 8) == static_cast<int>(PieceType::KING))
+  if (moving_piece_type == PieceType::KING)
   {
     king_locations_[static_cast<int>(player_to_move_)] = start;
   }
+
+  scores_.pop();
 }
 
 std::optional<Piece> BoardImpl::get_piece(int row, int col) const
@@ -535,6 +588,11 @@ void Board::make_move(int start, int end, PieceType promo)
 void Board::undo_move(Move move)
 {
   impl_->undo_move(move);
+}
+
+int Board::score() const
+{
+  return impl_->score();
 }
 
 std::optional<Piece> Board::get_piece(int row, int col) const

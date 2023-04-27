@@ -17,11 +17,13 @@ enum class Colour : std::uint8_t
 enum class PieceType : std::uint8_t
 {
   NONE,
-  PAWN,
+  PAWN_WHITE,
+  PAWN_BLACK,
   KNIGHT,
   ROOK,
   QUEEN,
-  KING
+  KING,
+  NUM_PIECE_TYPES
 };
 
 struct Piece
@@ -50,6 +52,7 @@ public:
   void make_move(Move);
   void make_move(int, int, PieceType pt = PieceType::NONE);
   void undo_move(Move);
+  int score() const; // The score from the current player's perspective.
   std::optional<Piece> get_piece(int, int) const;
 
 private:

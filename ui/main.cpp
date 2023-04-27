@@ -26,7 +26,8 @@ static std::string image_path(const Piece& piece)
   }
   switch (piece.type)
   {
-    case PieceType::PAWN:   type_str = "pawn";   break;
+    case PieceType::PAWN_WHITE:
+    case PieceType::PAWN_BLACK: type_str = "pawn";   break;
     case PieceType::KNIGHT: type_str = "knight"; break;
     case PieceType::ROOK:   type_str = "rook";   break;
     case PieceType::QUEEN:  type_str = "queen";  break;
@@ -185,7 +186,8 @@ void LosAlamosApp::run()
               {
                 piece_targets.clear();
                 target_index = 6*r + c;
-                if (moving_piece.type == PieceType::PAWN && (r == 0 || r == 5))
+                if ((moving_piece.type == PieceType::PAWN_WHITE && r == 5) ||
+                    (moving_piece.type == PieceType::PAWN_BLACK && r == 0))
                 {
                   screen = Screen::SELECT_PROMOTION;
                 }
@@ -205,7 +207,8 @@ void LosAlamosApp::run()
                 // Actually make the move.
                 piece_targets.clear();
                 target_index = 6*r + c;
-                if (moving_piece.type == PieceType::PAWN && (r == 0 || r == 5))
+                if ((moving_piece.type == PieceType::PAWN_WHITE && r == 5) ||
+                    (moving_piece.type == PieceType::PAWN_BLACK && r == 0))
                 {
                   screen = Screen::SELECT_PROMOTION;
                 }
