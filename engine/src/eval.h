@@ -6,9 +6,6 @@
 namespace la::eval
 {
 
-// Score which is so high it can't be attained normally.
-constexpr int mate_score = 100000;
-
 // Scores for each type of material.
 constexpr std::array<int, 7> piece_scores = { 0, 100, 100, 300, 500, 900, 0 };
 

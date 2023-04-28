@@ -79,7 +79,9 @@ public:
   void make_move(int, int, PieceType);
   void undo_move(Move);
   int score() const { return scores_.top(); }
+  bool in_check() const;
   std::optional<Piece> get_piece(int, int) const;
+  std::string move_to_string(Move) const;
 
 private:
   static constexpr int board_side = 6;
@@ -537,6 +539,13 @@ void BoardImpl::undo_move(Move move)
   scores_.pop();
 }
 
+bool BoardImpl::in_check() const
+{
+  // Call `will_be_in_check` with a dummy move.
+  int king_loc = king_locations_[static_cast<int>(player_to_move_)];
+  return will_be_in_check(king_loc, king_loc);
+}
+
 std::optional<Piece> BoardImpl::get_piece(int row, int col) const
 {
   assert(row >= 0 && row < board_side && col >= 0 && col < board_side);
@@ -554,8 +563,64 @@ std::optional<Piece> BoardImpl::get_piece(int row, int col) const
   return Piece { static_cast<Colour>(colour), static_cast<PieceType>(pt) };
 }
 
+// Serialise a move given the current position.
+std::string BoardImpl::move_to_string(Move move) const
+{
+  static const auto pt_to_str = [] (PieceType pt) -> std::string
+  {
+    switch (pt)
+    {
+      case PieceType::PAWN_WHITE:
+      case PieceType::PAWN_BLACK: return  ""; break;
+      case PieceType::ROOK:   return "R"; break;
+      case PieceType::KNIGHT: return "N"; break;
+      case PieceType::QUEEN:  return "Q"; break;
+      case PieceType::KING:   return "K"; break;
+    }
+
+    std::abort();
+  };
+
+  static const auto loc_to_str = [] (int loc) -> std::string
+  {
+    static constexpr const char* cols = "abcdef";
+    const int row = loc / padded_board_side - 1;
+    const int col = loc % padded_board_side - 2;
+    return std::string(1, cols[col]) + std::to_string(row);
+  };
+
+  const int start = move::get_start(move);
+  const int end = move::get_end(move);
+
+  const Square start_sq = squares_[start];
+
+  std::string move_str = pt_to_str(square::get_pt(start_sq));
+  move_str += loc_to_str(end);
+
+  // Append promotion string if needed.
+  const auto promo = move::get_promo(move);
+  if (promo != PieceType::NONE)
+  {
+    move_str += "=" + pt_to_str(promo);
+  }
+
+  // TODO: Could represent checks.
+
+  return move_str;
+}
+
 Board::Board() : impl_(std::make_unique<BoardImpl>())
 {
+}
+
+Board::Board(const Board& other) : impl_(std::make_unique<BoardImpl>(*other.impl_))
+{
+}
+
+Board& Board::operator=(const Board& other)
+{
+  impl_ = std::make_unique<BoardImpl>(*other.impl_);
+  return *this;
 }
 
 Board::~Board() = default;
@@ -595,9 +660,19 @@ int Board::score() const
   return impl_->score();
 }
 
+bool Board::in_check() const
+{
+  return impl_->in_check();
+}
+
 std::optional<Piece> Board::get_piece(int row, int col) const
 {
   return impl_->get_piece(row, col);
+}
+
+std::string Board::move_to_string(Move move) const
+{
+  return impl_->move_to_string(move);
 }
 
 }

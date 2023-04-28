@@ -8,6 +8,12 @@
 namespace la
 {
 
+namespace eval
+{
+// Score which is so high it can't be attained normally.
+constexpr int mate_score = 100000;
+}
+
 enum class Colour : std::uint8_t
 {
   WHITE = 0,
@@ -45,7 +51,11 @@ class Board
 {
 public:
   Board();
+  Board(const Board&);
+  Board& operator=(const Board&);
+
   ~Board();
+
   Colour player_to_move() const;
   std::vector<Move> get_moves() const;
   std::vector<int> get_targets_for_piece(int, int) const;
@@ -53,7 +63,10 @@ public:
   void make_move(int, int, PieceType pt = PieceType::NONE);
   void undo_move(Move);
   int score() const; // The score from the current player's perspective.
+  bool in_check() const;
   std::optional<Piece> get_piece(int, int) const;
+
+  std::string move_to_string(Move) const;
 
 private:
   std::unique_ptr<BoardImpl> impl_;

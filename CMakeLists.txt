@@ -5,4 +5,5 @@ include(cmake/CPM.cmake)
 
 add_subdirectory(engine)
 add_subdirectory(perft)
+add_subdirectory(search)
 add_subdirectory(ui)

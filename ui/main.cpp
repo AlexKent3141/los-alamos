@@ -6,15 +6,20 @@ extern "C"
 }
 
 #include "engine/engine.h"
+#include "search/search.h"
 
 #include <array>
 #include <cstdlib>
+#include <mutex>
 #include <optional>
 #include <set>
 #include <stdexcept>
 #include <string>
+#include <vector>
 
 using namespace la;
+
+constexpr std::chrono::milliseconds search_time{5000};
 
 static std::string image_path(const Piece& piece)
 {
@@ -51,7 +56,7 @@ private:
 
 LosAlamosApp::LosAlamosApp()
 {
-  static constexpr int width = 640;
+  static constexpr int width = 1280;
   static constexpr int height = 640;
 
   if (SDL_Init(SDL_INIT_VIDEO) != 0)
@@ -116,6 +121,29 @@ void LosAlamosApp::run()
   Piece moving_piece;
   std::set<int> piece_targets;
 
+  std::mutex search_result_mutex;
+  std::vector<std::pair<SearchData, std::string>> search_results;
+
+  const auto data_to_row = [&] (const SearchData& data) -> std::string
+  {
+    char buf[1024];
+    std::sprintf(
+      buf,
+      "%6d %5s %6d",
+      data.depth,
+      state.move_to_string(data.best_move).c_str(),
+      data.score);
+    return buf;
+  };
+
+  auto search_result_callback = [&] (const SearchData& search_data)
+  {
+    std::lock_guard lock(search_result_mutex);
+    search_results.push_back(std::make_pair(search_data, data_to_row(search_data)));
+  };
+
+  SearchWorker search_worker(search_result_callback);
+
   enum class Screen
   {
     BOARD,
@@ -150,6 +178,8 @@ void LosAlamosApp::run()
 
     if (screen == Screen::BOARD)
     {
+      punk_begin_horizontal_layout("1:1", PUNK_FILL, PUNK_FILL);
+
       punk_begin_vertical_layout("1:1:1:1:1:1", PUNK_FILL, PUNK_FILL);
       for (int r = 5; r >= 0; r--)
       {
@@ -193,6 +223,7 @@ void LosAlamosApp::run()
                 }
                 else
                 {
+                  search_results.clear();
                   state.make_move(selected_index, target_index);
                 }
               }
@@ -214,6 +245,7 @@ void LosAlamosApp::run()
                 }
                 else
                 {
+                  search_results.clear();
                   state.make_move(selected_index, target_index);
                 }
               }
@@ -237,6 +269,59 @@ void LosAlamosApp::run()
 
         punk_end_layout();
       }
+
+      punk_end_layout();
+
+      // This is the right-hand side of the screen.
+      // Buttons along the top and search results vertically below that.
+      punk_begin_vertical_layout("e40:e40:1", PUNK_FILL, PUNK_FILL);
+
+      if (search_worker.running())
+      {
+        punk_label("Searching...", NULL);
+      }
+      else
+      {
+        if (punk_button("Computer move", NULL))
+        {
+          search_results.clear();
+          search_worker.start(state, search_time);
+        }
+      }
+
+      // Column headers.
+      punk_label("Depth | Move | Score", NULL);
+
+      {
+        if (!search_results.empty())
+        {
+          std::lock_guard lock(search_result_mutex);
+
+          std::string format;
+          for (std::size_t i = 0; i < search_results.size(); i++)
+          {
+            format += "1";
+            if (i < search_results.size() - 1)
+            {
+              format += ":";
+            }
+          }
+
+          punk_begin_vertical_layout(format.c_str(), PUNK_FILL, PUNK_FILL);
+          for (const auto& result : search_results)
+          {
+            punk_label(result.second.c_str(), NULL);
+          }
+
+          punk_end_layout();
+        }
+        else
+        {
+          punk_skip_layout_widget();
+        }
+      }
+
+      punk_end_layout();
 
       punk_end_layout();
     }
