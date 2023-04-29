@@ -114,6 +114,14 @@ SearchWorker::SearchWorker(std::function<void(const SearchData&)> callback)
 {
 }
 
+SearchWorker::~SearchWorker()
+{
+  if (worker_.joinable())
+  {
+    worker_.join();
+  }
+}
+
 void SearchWorker::start(const la::Board& board, std::chrono::milliseconds timeout)
 {
   running_.store(true);

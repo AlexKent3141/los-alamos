@@ -25,6 +25,8 @@ class SearchWorker
 {
 public:
   SearchWorker(std::function<void(const SearchData&)>);
+  ~SearchWorker();
+
   void start(const la::Board&, std::chrono::milliseconds);
   bool running() const { return running_.load(); }
 
