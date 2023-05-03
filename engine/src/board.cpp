@@ -576,9 +576,9 @@ std::string BoardImpl::move_to_string(Move move) const
       case PieceType::KNIGHT: return "N"; break;
       case PieceType::QUEEN:  return "Q"; break;
       case PieceType::KING:   return "K"; break;
+      default:
+        std::abort();
     }
-
-    std::abort();
   };
 
   static const auto loc_to_str = [] (int loc) -> std::string

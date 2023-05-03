@@ -9,6 +9,7 @@ extern "C"
 #include "search/search.h"
 
 #include <array>
+#include <cassert>
 #include <cstdlib>
 #include <mutex>
 #include <optional>
@@ -37,6 +38,8 @@ static std::string image_path(const Piece& piece)
     case PieceType::ROOK:   type_str = "rook";   break;
     case PieceType::QUEEN:  type_str = "queen";  break;
     case PieceType::KING:   type_str = "king";   break;
+    default:
+      std::abort();
   }
 
   return "res/" + colour_str + "_" + type_str + ".png";
@@ -117,8 +120,8 @@ void LosAlamosApp::run()
   piece_target.control_colour_rgba = 0xFF7070FF;
 
   Board state;
-  int selected_index, target_index;
-  Piece moving_piece;
+  std::optional<int> selected_index = std::nullopt, target_index = std::nullopt;
+  std::optional<Piece> moving_piece = std::nullopt;
   std::set<int> piece_targets;
 
   std::mutex search_result_mutex;
@@ -151,7 +154,6 @@ void LosAlamosApp::run()
   };
 
   auto screen = Screen::BOARD;
-  PieceType promotion_type;
 
   SDL_Event event;
   SDL_bool stop = SDL_FALSE;
@@ -216,15 +218,18 @@ void LosAlamosApp::run()
               {
                 piece_targets.clear();
                 target_index = 6*r + c;
-                if ((moving_piece.type == PieceType::PAWN_WHITE && r == 5) ||
-                    (moving_piece.type == PieceType::PAWN_BLACK && r == 0))
+                assert(moving_piece);
+                if ((moving_piece->type == PieceType::PAWN_WHITE && r == 5) ||
+                    (moving_piece->type == PieceType::PAWN_BLACK && r == 0))
                 {
                   screen = Screen::SELECT_PROMOTION;
                 }
                 else
                 {
                   search_results.clear();
-                  state.make_move(selected_index, target_index);
+                  assert(selected_index);
+                  assert(target_index);
+                  state.make_move(*selected_index, *target_index);
                 }
               }
             }
@@ -238,15 +243,18 @@ void LosAlamosApp::run()
                 // Actually make the move.
                 piece_targets.clear();
                 target_index = 6*r + c;
-                if ((moving_piece.type == PieceType::PAWN_WHITE && r == 5) ||
-                    (moving_piece.type == PieceType::PAWN_BLACK && r == 0))
+                assert(moving_piece);
+                if ((moving_piece->type == PieceType::PAWN_WHITE && r == 5) ||
+                    (moving_piece->type == PieceType::PAWN_BLACK && r == 0))
                 {
                   screen = Screen::SELECT_PROMOTION;
                 }
                 else
                 {
                   search_results.clear();
-                  state.make_move(selected_index, target_index);
+                  assert(selected_index);
+                  assert(target_index);
+                  state.make_move(*selected_index, *target_index);
                 }
               }
               else
@@ -330,14 +338,16 @@ void LosAlamosApp::run()
       punk_label("Pick a promotion type:", NULL);
 
       punk_begin_horizontal_layout("1:1:1", PUNK_FILL, PUNK_FILL);
-      Piece promo_piece { moving_piece.colour, PieceType::NONE };
+      Piece promo_piece { moving_piece->colour, PieceType::NONE };
       for (const auto pt : { PieceType::KNIGHT, PieceType::ROOK, PieceType::QUEEN })
       {
         promo_piece.type = pt;
         if (punk_picture_button(image_path(promo_piece).c_str(), NULL))
         {
           // We now know the promotion type so can make the move.
-          state.make_move(selected_index, target_index, pt);
+          assert(selected_index);
+          assert(target_index);
+          state.make_move(*selected_index, *target_index, pt);
           screen = Screen::BOARD;
         }
       }

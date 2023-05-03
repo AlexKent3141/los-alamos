@@ -20,6 +20,8 @@ set_target_properties(search
     LANGUAGE CXX
     CXX_STANDARD 17)
 
-target_compile_options(search
-  PRIVATE
-    -g)
+if (UNIX)
+  target_compile_options(search
+    PRIVATE
+      -Wall -Wextra -Wpedantic -g)
+endif()

@@ -1,5 +1,7 @@
 #include "search/search.h"
 
+#include <cassert>
+
 namespace
 {
 
@@ -72,8 +74,10 @@ Move search(
 
   const auto moves = board.get_moves();
 
+  assert(!moves.empty());
+
   int depth = 1, score, best_score, best_score_at_depth;
-  Move best_move, best_move_at_depth;
+  Move best_move = moves[0], best_move_at_depth = moves[0];
   while (in_time())
   {
     // Try all available moves and keep track of the one with the highest score.

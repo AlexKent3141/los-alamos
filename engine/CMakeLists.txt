@@ -15,6 +15,8 @@ set_target_properties(engine
     LANGUAGE CXX
     CXX_STANDARD 17)
 
-target_compile_options(engine
-  PRIVATE
-    -g)
+if (UNIX)
+  target_compile_options(engine
+    PRIVATE
+      -Wall -Wextra -Wpedantic -g)
+endif()
