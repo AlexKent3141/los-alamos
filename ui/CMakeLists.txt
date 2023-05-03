@@ -1,7 +1,7 @@
 CPMAddPackage(
   NAME punk
   GIT_REPOSITORY https://github.com/AlexKent3141/sdl-punk
-  GIT_TAG respect-style
+  GIT_TAG master
   OPTIONS "BUILD_DEMO OFF")
 
 add_executable(los_alamos

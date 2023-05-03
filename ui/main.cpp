@@ -19,7 +19,7 @@ extern "C"
 
 using namespace la;
 
-constexpr std::chrono::milliseconds search_time{5000};
+constexpr std::chrono::milliseconds search_time{1000};
 
 static std::string image_path(const Piece& piece)
 {
@@ -297,20 +297,17 @@ void LosAlamosApp::run()
         {
           std::lock_guard lock(search_result_mutex);
 
-          std::string format;
-          for (std::size_t i = 0; i < search_results.size(); i++)
+          // Display the last 8 results.
+          punk_begin_vertical_layout("1:1:1:1:1:1:1:1", PUNK_FILL, PUNK_FILL);
+          std::size_t start = search_results.size() > 8 ? search_results.size() - 8 : 0;
+          for (std::size_t i = start; i < search_results.size(); i++)
           {
-            format += "1";
-            if (i < search_results.size() - 1)
-            {
-              format += ":";
-            }
+            punk_label(search_results[i].second.c_str(), NULL);
           }
 
-          punk_begin_vertical_layout(format.c_str(), PUNK_FILL, PUNK_FILL);
-          for (const auto& result : search_results)
+          for (std::size_t i = search_results.size(); i < 8; i++)
           {
-            punk_label(result.second.c_str(), NULL);
+            punk_skip_layout_widget();
           }
 
           punk_end_layout();
