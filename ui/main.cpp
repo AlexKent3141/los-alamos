@@ -11,6 +11,7 @@ extern "C"
 #include <array>
 #include <cassert>
 #include <cstdlib>
+#include <iostream>
 #include <mutex>
 #include <optional>
 #include <set>
@@ -132,17 +133,20 @@ void LosAlamosApp::run()
     char buf[1024];
     std::sprintf(
       buf,
-      "%6d %5s %6d",
+      "%6d %6s %7d %13ld",
       data.depth,
       state.move_to_string(data.best_move).c_str(),
-      data.score);
+      data.score,
+      data.nodes_searched);
     return buf;
   };
 
   auto search_result_callback = [&] (const SearchData& search_data)
   {
     std::lock_guard lock(search_result_mutex);
-    search_results.push_back(std::make_pair(search_data, data_to_row(search_data)));
+    std::string row = data_to_row(search_data);
+    search_results.push_back(std::make_pair(search_data, row));
+    std::cout << row << std::endl;
   };
 
   SearchWorker search_worker(search_result_callback);
@@ -298,7 +302,7 @@ void LosAlamosApp::run()
       }
 
       // Column headers.
-      punk_label("Depth | Move | Score", NULL);
+      punk_label("Depth | Move | Score | Total nodes", NULL);
 
       {
         if (!search_results.empty())

@@ -70,7 +70,6 @@ Move search(
   std::function<void(const SearchData&)> callback)
 {
   current_search_end_time = Clock::now() + timeout;
-  num_nodes_searched = 0;
 
   const auto moves = board.get_moves();
 
@@ -80,6 +79,8 @@ Move search(
   Move best_move = moves[0], best_move_at_depth = moves[0];
   while (in_time())
   {
+    num_nodes_searched = 0;
+
     // Try all available moves and keep track of the one with the highest score.
     best_score_at_depth = -eval::mate_score;
     for (auto move : moves)
