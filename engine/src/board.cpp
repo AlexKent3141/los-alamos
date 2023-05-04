@@ -566,16 +566,13 @@ std::optional<Piece> BoardImpl::get_piece(int row, int col) const
 // Serialise a move given the current position.
 std::string BoardImpl::move_to_string(Move move) const
 {
-  static const auto pt_to_str = [] (PieceType pt) -> std::string
+  static const auto promo_pt_to_str = [] (PieceType pt) -> std::string
   {
     switch (pt)
     {
-      case PieceType::PAWN_WHITE:
-      case PieceType::PAWN_BLACK: return  ""; break;
       case PieceType::ROOK:   return "R"; break;
       case PieceType::KNIGHT: return "N"; break;
       case PieceType::QUEEN:  return "Q"; break;
-      case PieceType::KING:   return "K"; break;
       default:
         std::abort();
     }
@@ -592,19 +589,14 @@ std::string BoardImpl::move_to_string(Move move) const
   const int start = move::get_start(move);
   const int end = move::get_end(move);
 
-  const Square start_sq = squares_[start];
-
-  std::string move_str = pt_to_str(square::get_pt(start_sq));
-  move_str += loc_to_str(end);
+  std::string move_str = loc_to_str(start) + loc_to_str(end);
 
   // Append promotion string if needed.
   const auto promo = move::get_promo(move);
   if (promo != PieceType::NONE)
   {
-    move_str += "=" + pt_to_str(promo);
+    move_str += "=" + promo_pt_to_str(promo);
   }
-
-  // TODO: Could represent checks.
 
   return move_str;
 }
