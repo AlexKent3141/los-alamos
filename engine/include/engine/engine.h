@@ -8,6 +8,10 @@
 namespace la
 {
 
+constexpr int board_side = 6;
+constexpr int padded_board_side = board_side + 4;
+constexpr int padded_board_area = padded_board_side * padded_board_side;
+
 namespace eval
 {
 // Score which is so high it can't be attained normally.
@@ -31,6 +35,8 @@ enum class PieceType : std::uint8_t
   KING,
   NUM_PIECE_TYPES
 };
+
+constexpr int num_piece_types = static_cast<int>(PieceType::NUM_PIECE_TYPES);
 
 struct Piece
 {

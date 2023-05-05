@@ -1,6 +1,7 @@
 #include "engine/engine.h"
 
 #include "eval.h"
+#include "keys.h"
 
 #include <algorithm>
 #include <array>
@@ -84,10 +85,6 @@ public:
   std::string move_to_string(Move) const;
 
 private:
-  static constexpr int board_side = 6;
-  static constexpr int padded_board_side = board_side + 4;
-  static constexpr int padded_board_area = padded_board_side * padded_board_side;
-
   // Padded offsets for each piece's moves.
   static constexpr std::array<
     std::array<int, 8>,
