@@ -1,4 +1,5 @@
 #include "search/search.h"
+#include "engine/tt.h"
 
 #include <cassert>
 
@@ -10,6 +11,13 @@ using Clock = std::chrono::steady_clock;
 Clock::time_point current_search_end_time;
 std::uint64_t num_nodes_searched;
 
+struct Entry
+{
+  std::uint64_t hash;
+  int depth;
+  int score;
+};
+
 using Table = la::TT<Entry, 2000000>;
 
 bool in_time()
@@ -17,12 +25,18 @@ bool in_time()
   return Clock::now() < current_search_end_time;
 }
 
-int minimax(la::Board& board, int depth)
+int minimax(la::Board& board, int depth, Table& table)
 {
   if (depth == 0)
   {
     ++num_nodes_searched;
     return board.score();
+  }
+
+  Entry* entry;
+  if (table.probe(board.hash(), &entry) && entry->depth == depth)
+  {
+    return entry->score;
   }
 
   const auto moves = board.get_moves();
@@ -49,13 +63,20 @@ int minimax(la::Board& board, int depth)
     }
 
     board.make_move(move);
-    score = -minimax(board, depth - 1);
+    score = -minimax(board, depth - 1, table);
     board.undo_move(move);
 
     if (score > best_score)
     {
       best_score = score;
     }
+  }
+
+  if (depth > entry->depth)
+  {
+    entry->hash = board.hash();
+    entry->depth = depth;
+    entry->score = best_score;
   }
 
   return best_score;
@@ -77,6 +98,7 @@ Move search(
 
   assert(!moves.empty());
 
+  Table table;
   int depth = 1, score, best_score, best_score_at_depth;
   Move best_move = moves[0], best_move_at_depth = moves[0];
   while (in_time())
@@ -90,7 +112,7 @@ Move search(
       if (!in_time()) break;
 
       board.make_move(move);
-      score = -minimax(board, depth - 1);
+      score = -minimax(board, depth - 1, table);
       board.undo_move(move);
 
       if (score > best_score_at_depth)
