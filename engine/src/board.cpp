@@ -1,4 +1,4 @@
-#include "engine/engine.h"
+#include "engine/board.h"
 
 #include "eval.h"
 #include "keys.h"
@@ -80,15 +80,14 @@ public:
   void make_move(int, int, PieceType);
   void undo_move(Move);
   int score() const { return scores_.top(); }
+  std::uint64_t hash() const { return hashes_.top(); }
   bool in_check() const;
   std::optional<Piece> get_piece(int, int) const;
   std::string move_to_string(Move) const;
 
 private:
   // Padded offsets for each piece's moves.
-  static constexpr std::array<
-    std::array<int, 8>,
-    static_cast<int>(PieceType::NUM_PIECE_TYPES)> piece_offsets =
+  static constexpr std::array<std::array<int, 8>, num_piece_types> piece_offsets =
   {
     std::array<int, 8>
     { 0, 0, 0, 0, 0, 0, 0, 0 },
@@ -115,6 +114,7 @@ private:
   mutable std::array<Square, padded_board_area> squares_;
   std::array<int, 2> king_locations_;
   std::stack<int> scores_;
+  std::stack<std::uint64_t> hashes_;
 
   static constexpr int to_padded(int r, int c)
   {
@@ -143,6 +143,7 @@ BoardImpl::BoardImpl() : player_to_move_(Colour::WHITE)
   squares_.fill(0);
 
   int score = 0;
+  std::uint64_t hash = keys::white_key;
 
   const auto set_square_properties = [&] (int loc, Colour col, PieceType pt)
   {
@@ -155,6 +156,7 @@ BoardImpl::BoardImpl() : player_to_move_(Colour::WHITE)
       eval::square_scores[static_cast<int>(pt)][loc];
 
     score += col == Colour::WHITE ? piece_score : -piece_score;
+    hash ^= keys::piece_square_keys[static_cast<int>(col)][static_cast<int>(pt)][loc];
   };
 
   // Make a pass where we mark squares that are on the board.
@@ -189,6 +191,7 @@ BoardImpl::BoardImpl() : player_to_move_(Colour::WHITE)
   king_locations_ = { to_padded(0, 3), to_padded(5, 3) };
 
   scores_.push(score);
+  hashes_.push(hash);
 }
 
 bool BoardImpl::will_be_in_check(int start, int end) const
@@ -434,7 +437,10 @@ std::vector<int> BoardImpl::get_targets_for_piece(int row, int col) const
 
 void BoardImpl::make_move(Move move)
 {
+  const auto other_player = player_to_move_ == Colour::WHITE ? Colour::BLACK : Colour::WHITE;
+
   int next_score = scores_.top();
+  int next_hash = hashes_.top() ^ keys::white_key;
 
   const int start = move::get_start(move);
   const int end = move::get_end(move);
@@ -448,6 +454,8 @@ void BoardImpl::make_move(Move move)
   end_sq &= 0xFF;
 
   next_score -= eval::square_scores[static_cast<int>(moving_piece_type)][start];
+  next_hash ^= keys::piece_square_keys
+      [static_cast<int>(player_to_move_)][static_cast<int>(moving_piece_type)][start];
 
   const auto promo_type = move::get_promo(move);
   if (promo_type != PieceType::NONE)
@@ -456,17 +464,31 @@ void BoardImpl::make_move(Move move)
     next_score += eval::piece_scores[static_cast<int>(promo_type)];
 
     next_score += eval::square_scores[static_cast<int>(promo_type)][end];
+
+    next_hash ^= keys::piece_square_keys
+        [static_cast<int>(player_to_move_)][static_cast<int>(promo_type)][end];
+
     square::set_pt(end_sq, promo_type);
   }
   else
   {
     next_score += eval::square_scores[static_cast<int>(moving_piece_type)][end];
+
+    next_hash ^= keys::piece_square_keys
+        [static_cast<int>(player_to_move_)][static_cast<int>(moving_piece_type)][end];
+
     square::set_pt(end_sq, moving_piece_type);
   }
 
   square::set_colour(end_sq, player_to_move_);
 
-  next_score += eval::piece_scores[static_cast<int>(cap_piece_type)];
+  if (cap_piece_type != PieceType::NONE)
+  {
+    next_score += eval::piece_scores[static_cast<int>(cap_piece_type)];
+
+    next_hash ^= keys::piece_square_keys
+        [static_cast<int>(other_player)][static_cast<int>(cap_piece_type)][end];
+  }
 
   if (moving_piece_type == PieceType::KING)
   {
@@ -476,6 +498,7 @@ void BoardImpl::make_move(Move move)
   player_to_move_ = player_to_move_ == Colour::WHITE ? Colour::BLACK : Colour::WHITE;
 
   scores_.push(-1 * next_score);
+  hashes_.push(next_hash);
 }
 
 void BoardImpl::make_move(int start, int end, PieceType promo)
@@ -534,6 +557,7 @@ void BoardImpl::undo_move(Move move)
   }
 
   scores_.pop();
+  hashes_.pop();
 }
 
 bool BoardImpl::in_check() const
@@ -647,6 +671,11 @@ void Board::undo_move(Move move)
 int Board::score() const
 {
   return impl_->score();
+}
+
+std::uint64_t Board::hash() const
+{
+  return impl_->hash();
 }
 
 bool Board::in_check() const

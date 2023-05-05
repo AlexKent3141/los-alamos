@@ -69,6 +69,7 @@ public:
   void make_move(int, int, PieceType pt = PieceType::NONE);
   void undo_move(Move);
   int score() const; // The score from the current player's perspective.
+  std::uint64_t hash() const;
   bool in_check() const;
   std::optional<Piece> get_piece(int, int) const;
 
