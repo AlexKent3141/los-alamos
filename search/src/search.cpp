@@ -10,6 +10,8 @@ using Clock = std::chrono::steady_clock;
 Clock::time_point current_search_end_time;
 std::uint64_t num_nodes_searched;
 
+using Table = la::TT<Entry, 2000000>;
+
 bool in_time()
 {
   return Clock::now() < current_search_end_time;
