@@ -1,6 +1,6 @@
 #pragma once
 
-#include "engine/engine.h"
+#include "engine/board.h"
 
 #include <atomic>
 #include <chrono>

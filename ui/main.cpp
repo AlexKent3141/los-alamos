@@ -5,7 +5,7 @@ extern "C"
 #include "punk.h"
 }
 
-#include "engine/engine.h"
+#include "engine/board.h"
 #include "search/search.h"
 
 #include <array>
