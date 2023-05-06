@@ -71,6 +71,7 @@ public:
   int score() const; // The score from the current player's perspective.
   std::uint64_t hash() const;
   bool in_check() const;
+  bool is_draw() const;
   std::optional<Piece> get_piece(int, int) const;
 
   std::string move_to_string(Move) const;

@@ -42,13 +42,19 @@ int minimax(la::Board& board, int depth, Table& table)
   const auto moves = board.get_moves();
   if (moves.empty())
   {
-    // The game is over and we're either in stalemate or checkmate.
-    if (board.in_check())
+    if (board.is_draw())
     {
+      // Draw by repetition.
+      return 0;
+    }
+    else if (board.in_check())
+    {
+      // Checkmate.
       return -la::eval::mate_score;
     }
     else
     {
+      // Stalemate.
       return 0;
     }
   }

@@ -6,7 +6,7 @@
 #include <algorithm>
 #include <array>
 #include <cassert>
-#include <stack>
+#include <vector>
 
 namespace
 {
@@ -75,12 +75,13 @@ public:
   BoardImpl();
   std::vector<Move> get_moves() const;
   std::vector<int> get_targets_for_piece(int, int) const;
-  Colour player_to_move() const { return states_.top().player_to_move; }
+  Colour player_to_move() const { return states_.back().player_to_move; }
   void make_move(Move);
   void make_move(int, int, PieceType);
   void undo_move(Move);
-  int score() const { return states_.top().score; }
-  std::uint64_t hash() const { return states_.top().hash; }
+  int score() const { return states_.back().score; }
+  std::uint64_t hash() const { return states_.back().hash; }
+  bool is_draw() const;
   bool in_check() const;
   std::optional<Piece> get_piece(int, int) const;
   std::string move_to_string(Move) const;
@@ -93,6 +94,7 @@ private:
     int score;
     std::uint64_t hash;
     std::array<int, 2> king_locations;
+    bool is_reversible; // Not a pawn move or capture.
   };
 
   // Padded offsets for each piece's moves.
@@ -120,7 +122,7 @@ private:
   };
 
   mutable std::array<Square, padded_board_area> squares_;
-  std::stack<BoardState> states_;
+  std::vector<BoardState> states_;
 
   static constexpr int to_padded(int r, int c)
   {
@@ -194,15 +196,23 @@ BoardImpl::BoardImpl()
     set_square_properties(to_padded(5, c), Colour::BLACK, backrank[c]);
   }
 
-  BoardState state = { Colour::WHITE, score, hash, { to_padded(0, 3), to_padded(5, 3) } };
-  states_.push(state);
+  BoardState state =
+  {
+    Colour::WHITE,
+    score,
+    hash,
+    { to_padded(0, 3), to_padded(5, 3) },
+    false
+  };
+
+  states_.push_back(state);
 }
 
 bool BoardImpl::will_be_in_check(int start, int end) const
 {
   bool in_check = false;
 
-  const auto& state = states_.top();
+  const auto& state = states_.back();
   int king_loc = state.king_locations[static_cast<int>(state.player_to_move)];
   int left_pawn_loc, right_pawn_loc;
   const Square start_sq = squares_[start];
@@ -291,7 +301,7 @@ void BoardImpl::add_pawn_moves(int loc, std::vector<Move>& moves) const
     moves.push_back(queen_promo);
   };
 
-  const auto player_to_move = states_.top().player_to_move;
+  const auto player_to_move = states_.back().player_to_move;
 
   const int forward_offset =
     player_to_move == Colour::WHITE ?  padded_board_side : -padded_board_side;
@@ -360,9 +370,15 @@ void BoardImpl::add_pawn_moves(int loc, std::vector<Move>& moves) const
 
 std::vector<Move> BoardImpl::get_moves() const
 {
-  const auto player_to_move = states_.top().player_to_move;
-  Square target_sq;
   std::vector<Move> moves;
+
+  if (is_draw())
+  {
+    return moves;
+  }
+
+  const auto player_to_move = states_.back().player_to_move;
+  Square target_sq;
   for (int loc = 0; loc < padded_board_area; loc++)
   {
     const Square sq = squares_[loc];
@@ -445,7 +461,7 @@ std::vector<int> BoardImpl::get_targets_for_piece(int row, int col) const
 
 void BoardImpl::make_move(Move move)
 {
-  const auto& prev_state = states_.top();
+  const auto& prev_state = states_.back();
   auto next_state = prev_state;
 
   const auto player_to_move = prev_state.player_to_move;
@@ -511,7 +527,12 @@ void BoardImpl::make_move(Move move)
   next_state.score = -1 * next_score;
   next_state.hash = next_hash;
 
-  states_.push(next_state);
+  next_state.is_reversible =
+    moving_piece_type != PieceType::PAWN_WHITE &&
+    moving_piece_type != PieceType::PAWN_BLACK &&
+    cap_piece_type == PieceType::NONE;
+
+  states_.push_back(next_state);
 }
 
 void BoardImpl::make_move(int start, int end, PieceType promo)
@@ -524,8 +545,8 @@ void BoardImpl::make_move(int start, int end, PieceType promo)
 
 void BoardImpl::undo_move(Move move)
 {
-  const auto other_player = states_.top().player_to_move;
-  states_.pop();
+  const auto other_player = states_.back().player_to_move;
+  states_.pop_back();
 
   const auto player_to_move = other_player == Colour::WHITE ? Colour::BLACK : Colour::WHITE;
 
@@ -571,6 +592,20 @@ bool BoardImpl::in_check() const
 {
   // Call `will_be_in_check` with a dummy move.
   return will_be_in_check(0, 0);
+}
+
+bool BoardImpl::is_draw() const
+{
+  // Check for draw by repetition.
+  int num_repeats = 0;
+  const auto current_hash = states_.back().hash;
+  for (int i = static_cast<int>(states_.size()); i >= 0; i--)
+  {
+    const auto& state = states_[i];
+    num_repeats += (state.hash == current_hash);
+  }
+
+  return num_repeats == 3;
 }
 
 std::optional<Piece> BoardImpl::get_piece(int row, int col) const
@@ -682,6 +717,11 @@ int Board::score() const
 std::uint64_t Board::hash() const
 {
   return impl_->hash();
+}
+
+bool Board::is_draw() const
+{
+  return impl_->is_draw();
 }
 
 bool Board::in_check() const
