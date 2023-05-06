@@ -40,6 +40,9 @@ inline bool is_pawn(Square sq)
 
 }
 
+namespace la
+{
+
 namespace move
 {
 
@@ -47,10 +50,6 @@ inline int get_start(la::Move m)
 { return m & 0xFF; }
 inline int get_end(la::Move m)
 { return (m & 0xFF00) >> 8; }
-inline la::PieceType get_cap(la::Move m)
-{ return static_cast<la::PieceType>((m & 0xFF0000) >> 16); }
-inline la::PieceType get_promo(la::Move m)
-{ return static_cast<la::PieceType>((m & 0xFF000000) >> 24); }
 inline void set_promo(la::Move& m, la::PieceType pt)
 { m |= static_cast<int>(pt) << 24; }
 
@@ -64,9 +63,6 @@ inline la::Move create(
 }
 
 }
-
-namespace la
-{
 
 // Represent the board state using a "letter-box" style structure.
 class BoardImpl

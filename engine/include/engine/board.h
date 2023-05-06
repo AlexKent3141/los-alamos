@@ -51,6 +51,14 @@ struct Piece
 // Byte 3: the promotion piece type (can be NONE)
 using Move = std::uint32_t;
 
+namespace move
+{
+inline PieceType get_cap(Move m)
+{ return static_cast<la::PieceType>((m & 0xFF0000) >> 16); }
+inline PieceType get_promo(Move m)
+{ return static_cast<PieceType>((m & 0xFF000000) >> 24); }
+}
+
 class BoardImpl;
 
 class Board

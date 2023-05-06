@@ -67,6 +67,16 @@ int minimax(la::Board& board, int depth, int alpha, int beta, Table& table)
     }
   }
 
+  // Sort moves so that captures are first.
+  std::size_t cap_index = 0;
+  for (std::size_t i = 0; i < moves.size(); i++)
+  {
+    if (la::move::get_cap(moves[i]) != la::PieceType::NONE)
+    {
+      std::swap(moves[cap_index++], moves[i]);
+    }
+  }
+
   // If we have a hash move then put it first.
   if (hash_move != 0)
   {
