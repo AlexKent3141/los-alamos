@@ -2,6 +2,7 @@
 #include "engine/tt.h"
 
 #include <cassert>
+#include <utility>
 
 namespace
 {
@@ -16,6 +17,7 @@ struct Entry
   std::uint64_t hash;
   int depth;
   int score;
+  la::Move hash_move;
 };
 
 using Table = la::TT<Entry, 2000000>;
@@ -33,13 +35,19 @@ int minimax(la::Board& board, int depth, int alpha, int beta, Table& table)
     return board.score();
   }
 
+  la::Move hash_move = 0;
   Entry* entry;
-  if (table.probe(board.hash(), &entry) && entry->depth >= depth)
+  if (table.probe(board.hash(), &entry))
   {
-    alpha = std::max(alpha, entry->score);
+    if (entry->depth >= depth)
+    {
+      alpha = std::max(alpha, entry->score);
+    }
+
+    hash_move = entry->hash_move;
   }
 
-  const auto moves = board.get_moves();
+  auto moves = board.get_moves();
   if (moves.empty())
   {
     if (board.is_draw())
@@ -59,7 +67,21 @@ int minimax(la::Board& board, int depth, int alpha, int beta, Table& table)
     }
   }
 
+  // If we have a hash move then put it first.
+  if (hash_move != 0)
+  {
+    for (std::size_t i = 0; i < moves.size(); i++)
+    {
+      if (moves[i] == hash_move)
+      {
+        std::swap(moves[i], moves[0]);
+        break;
+      }
+    }
+  }
+
   int best_score = -la::eval::mate_score, score;
+  la::Move cutoff_move = 0;
   for (const auto move : moves)
   {
     // Return early if we're out of time.
@@ -81,6 +103,7 @@ int minimax(la::Board& board, int depth, int alpha, int beta, Table& table)
     if (alpha >= beta)
     {
       // Cut-off
+      cutoff_move = move;
       break;
     }
   }
@@ -90,6 +113,7 @@ int minimax(la::Board& board, int depth, int alpha, int beta, Table& table)
     entry->hash = board.hash();
     entry->depth = depth;
     entry->score = alpha;
+    entry->hash_move = cutoff_move;
   }
 
   return best_score;
