@@ -25,7 +25,7 @@ bool in_time()
   return Clock::now() < current_search_end_time;
 }
 
-int minimax(la::Board& board, int depth, Table& table)
+int minimax(la::Board& board, int depth, int alpha, int beta, Table& table)
 {
   if (depth == 0)
   {
@@ -33,11 +33,11 @@ int minimax(la::Board& board, int depth, Table& table)
     return board.score();
   }
 
-  Entry* entry;
-  if (table.probe(board.hash(), &entry) && entry->depth == depth)
-  {
-    return entry->score;
-  }
+//Entry* entry;
+//if (table.probe(board.hash(), &entry) && entry->depth == depth)
+//{
+//  return entry->score;
+//}
 
   const auto moves = board.get_moves();
   if (moves.empty())
@@ -69,21 +69,28 @@ int minimax(la::Board& board, int depth, Table& table)
     }
 
     board.make_move(move);
-    score = -minimax(board, depth - 1, table);
+    score = -minimax(board, depth - 1, -beta, -alpha, table);
     board.undo_move(move);
 
     if (score > best_score)
     {
       best_score = score;
     }
+
+    alpha = std::max(alpha, best_score);
+    if (alpha >= beta)
+    {
+      // Cut-off
+      break;
+    }
   }
 
-  if (depth > entry->depth)
-  {
-    entry->hash = board.hash();
-    entry->depth = depth;
-    entry->score = best_score;
-  }
+//if (depth > entry->depth)
+//{
+//  entry->hash = board.hash();
+//  entry->depth = depth;
+//  entry->score = best_score;
+//}
 
   return best_score;
 }
@@ -118,7 +125,7 @@ Move search(
       if (!in_time()) break;
 
       board.make_move(move);
-      score = -minimax(board, depth - 1, table);
+      score = -minimax(board, depth - 1, -la::eval::mate_score, la::eval::mate_score, table);
       board.undo_move(move);
 
       if (score > best_score_at_depth)
