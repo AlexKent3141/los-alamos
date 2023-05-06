@@ -75,17 +75,26 @@ public:
   BoardImpl();
   std::vector<Move> get_moves() const;
   std::vector<int> get_targets_for_piece(int, int) const;
-  Colour player_to_move() const { return player_to_move_; }
+  Colour player_to_move() const { return states_.top().player_to_move; }
   void make_move(Move);
   void make_move(int, int, PieceType);
   void undo_move(Move);
-  int score() const { return scores_.top(); }
-  std::uint64_t hash() const { return hashes_.top(); }
+  int score() const { return states_.top().score; }
+  std::uint64_t hash() const { return states_.top().hash; }
   bool in_check() const;
   std::optional<Piece> get_piece(int, int) const;
   std::string move_to_string(Move) const;
 
 private:
+  // Keep track of state which changes per turn.
+  struct BoardState
+  {
+    Colour player_to_move;
+    int score;
+    std::uint64_t hash;
+    std::array<int, 2> king_locations;
+  };
+
   // Padded offsets for each piece's moves.
   static constexpr std::array<std::array<int, 8>, num_piece_types> piece_offsets =
   {
@@ -110,11 +119,8 @@ private:
       padded_board_side - 1, padded_board_side + 1, -padded_board_side - 1, -padded_board_side + 1 }
   };
 
-  Colour player_to_move_;
   mutable std::array<Square, padded_board_area> squares_;
-  std::array<int, 2> king_locations_;
-  std::stack<int> scores_;
-  std::stack<std::uint64_t> hashes_;
+  std::stack<BoardState> states_;
 
   static constexpr int to_padded(int r, int c)
   {
@@ -137,7 +143,7 @@ private:
   void add_pawn_moves(int, std::vector<Move>&) const;
 };
 
-BoardImpl::BoardImpl() : player_to_move_(Colour::WHITE)
+BoardImpl::BoardImpl()
 {
   // Start off by marking all squares as being part of the padding.
   squares_.fill(0);
@@ -188,17 +194,16 @@ BoardImpl::BoardImpl() : player_to_move_(Colour::WHITE)
     set_square_properties(to_padded(5, c), Colour::BLACK, backrank[c]);
   }
 
-  king_locations_ = { to_padded(0, 3), to_padded(5, 3) };
-
-  scores_.push(score);
-  hashes_.push(hash);
+  BoardState state = { Colour::WHITE, score, hash, { to_padded(0, 3), to_padded(5, 3) } };
+  states_.push(state);
 }
 
 bool BoardImpl::will_be_in_check(int start, int end) const
 {
   bool in_check = false;
 
-  int king_loc = king_locations_[static_cast<int>(player_to_move_)];
+  const auto& state = states_.top();
+  int king_loc = state.king_locations[static_cast<int>(state.player_to_move)];
   int left_pawn_loc, right_pawn_loc;
   const Square start_sq = squares_[start];
   const auto pt = square::get_pt(start_sq);
@@ -225,7 +230,7 @@ bool BoardImpl::will_be_in_check(int start, int end) const
       {
         auto pt = square::get_pt(target_sq);
         if (pt == target_pt &&
-            square::get_colour(target_sq) != player_to_move_)
+            square::get_colour(target_sq) != state.player_to_move)
         {
           in_check = true;
           goto check_end;
@@ -240,24 +245,24 @@ bool BoardImpl::will_be_in_check(int start, int end) const
 
   // Check for pawn checks.
   left_pawn_loc = king_loc - 1;
-  left_pawn_loc += player_to_move_ == Colour::WHITE ?  padded_board_side : -padded_board_side;
+  left_pawn_loc += state.player_to_move == Colour::WHITE ?  padded_board_side : -padded_board_side;
 
   target_sq = squares_[left_pawn_loc];
   if (square::on_board(target_sq) &&
       square::is_pawn(target_sq) &&
-      square::get_colour(target_sq) != player_to_move_)
+      square::get_colour(target_sq) != state.player_to_move)
   {
     in_check = true;
     goto check_end;
   }
 
   right_pawn_loc = king_loc + 1;
-  right_pawn_loc += player_to_move_ == Colour::WHITE ?  padded_board_side : -padded_board_side;
+  right_pawn_loc += state.player_to_move == Colour::WHITE ?  padded_board_side : -padded_board_side;
 
   target_sq = squares_[right_pawn_loc];
   if (square::on_board(target_sq) &&
       square::is_pawn(target_sq) &&
-      square::get_colour(target_sq) != player_to_move_)
+      square::get_colour(target_sq) != state.player_to_move)
   {
     in_check = true;
     goto check_end;
@@ -286,8 +291,10 @@ void BoardImpl::add_pawn_moves(int loc, std::vector<Move>& moves) const
     moves.push_back(queen_promo);
   };
 
+  const auto player_to_move = states_.top().player_to_move;
+
   const int forward_offset =
-    player_to_move_ == Colour::WHITE ?  padded_board_side : -padded_board_side;
+    player_to_move == Colour::WHITE ?  padded_board_side : -padded_board_side;
 
   // Can we move forward to an empty location?
   const int forward = loc + forward_offset;
@@ -313,7 +320,7 @@ void BoardImpl::add_pawn_moves(int loc, std::vector<Move>& moves) const
   {
     auto pt = square::get_pt(target_sq);
     if (pt != PieceType::NONE &&
-        square::get_colour(target_sq) != player_to_move_ &&
+        square::get_colour(target_sq) != player_to_move &&
         !will_be_in_check(loc, left_diag))
     {
       const auto move = move::create(loc, left_diag, pt);
@@ -335,7 +342,7 @@ void BoardImpl::add_pawn_moves(int loc, std::vector<Move>& moves) const
   {
     auto pt = square::get_pt(target_sq);
     if (pt != PieceType::NONE &&
-        square::get_colour(target_sq) != player_to_move_ &&
+        square::get_colour(target_sq) != player_to_move &&
         !will_be_in_check(loc, right_diag))
     {
       const auto move = move::create(loc, right_diag, pt);
@@ -353,6 +360,7 @@ void BoardImpl::add_pawn_moves(int loc, std::vector<Move>& moves) const
 
 std::vector<Move> BoardImpl::get_moves() const
 {
+  const auto player_to_move = states_.top().player_to_move;
   Square target_sq;
   std::vector<Move> moves;
   for (int loc = 0; loc < padded_board_area; loc++)
@@ -364,7 +372,7 @@ std::vector<Move> BoardImpl::get_moves() const
     if (pt == PieceType::NONE) continue; // Ignore empty locations.
 
     const auto colour = square::get_colour(sq);
-    if (colour != player_to_move_) continue; // Ignore pieces of the wrong colour.
+    if (colour != player_to_move) continue; // Ignore pieces of the wrong colour.
 
     // Generate moves for this piece.
     const auto& offsets = piece_offsets[static_cast<int>(pt)];
@@ -384,7 +392,7 @@ std::vector<Move> BoardImpl::get_moves() const
         {
           if (square::get_pt(target_sq) != PieceType::NONE)
           {
-            if (square::get_colour(target_sq) != player_to_move_)
+            if (square::get_colour(target_sq) != player_to_move)
             {
               // Capture move.
               if (will_be_in_check(loc, target)) break;
@@ -437,10 +445,14 @@ std::vector<int> BoardImpl::get_targets_for_piece(int row, int col) const
 
 void BoardImpl::make_move(Move move)
 {
-  const auto other_player = player_to_move_ == Colour::WHITE ? Colour::BLACK : Colour::WHITE;
+  const auto& prev_state = states_.top();
+  auto next_state = prev_state;
 
-  int next_score = scores_.top();
-  int next_hash = hashes_.top() ^ keys::white_key;
+  const auto player_to_move = prev_state.player_to_move;
+  const auto other_player = player_to_move == Colour::WHITE ? Colour::BLACK : Colour::WHITE;
+
+  int next_score = prev_state.score;
+  int next_hash = prev_state.hash ^ keys::white_key;
 
   const int start = move::get_start(move);
   const int end = move::get_end(move);
@@ -455,7 +467,7 @@ void BoardImpl::make_move(Move move)
 
   next_score -= eval::square_scores[static_cast<int>(moving_piece_type)][start];
   next_hash ^= keys::piece_square_keys
-      [static_cast<int>(player_to_move_)][static_cast<int>(moving_piece_type)][start];
+      [static_cast<int>(player_to_move)][static_cast<int>(moving_piece_type)][start];
 
   const auto promo_type = move::get_promo(move);
   if (promo_type != PieceType::NONE)
@@ -466,7 +478,7 @@ void BoardImpl::make_move(Move move)
     next_score += eval::square_scores[static_cast<int>(promo_type)][end];
 
     next_hash ^= keys::piece_square_keys
-        [static_cast<int>(player_to_move_)][static_cast<int>(promo_type)][end];
+        [static_cast<int>(player_to_move)][static_cast<int>(promo_type)][end];
 
     square::set_pt(end_sq, promo_type);
   }
@@ -475,12 +487,12 @@ void BoardImpl::make_move(Move move)
     next_score += eval::square_scores[static_cast<int>(moving_piece_type)][end];
 
     next_hash ^= keys::piece_square_keys
-        [static_cast<int>(player_to_move_)][static_cast<int>(moving_piece_type)][end];
+        [static_cast<int>(player_to_move)][static_cast<int>(moving_piece_type)][end];
 
     square::set_pt(end_sq, moving_piece_type);
   }
 
-  square::set_colour(end_sq, player_to_move_);
+  square::set_colour(end_sq, player_to_move);
 
   if (cap_piece_type != PieceType::NONE)
   {
@@ -492,13 +504,14 @@ void BoardImpl::make_move(Move move)
 
   if (moving_piece_type == PieceType::KING)
   {
-    king_locations_[static_cast<int>(player_to_move_)] = end;
+    next_state.king_locations[static_cast<int>(prev_state.player_to_move)] = end;
   }
 
-  player_to_move_ = player_to_move_ == Colour::WHITE ? Colour::BLACK : Colour::WHITE;
+  next_state.player_to_move = other_player;
+  next_state.score = -1 * next_score;
+  next_state.hash = next_hash;
 
-  scores_.push(-1 * next_score);
-  hashes_.push(next_hash);
+  states_.push(next_state);
 }
 
 void BoardImpl::make_move(int start, int end, PieceType promo)
@@ -511,8 +524,10 @@ void BoardImpl::make_move(int start, int end, PieceType promo)
 
 void BoardImpl::undo_move(Move move)
 {
-  const auto other_player = player_to_move_;
-  player_to_move_ = player_to_move_ == Colour::WHITE ? Colour::BLACK : Colour::WHITE;
+  const auto other_player = states_.top().player_to_move;
+  states_.pop();
+
+  const auto player_to_move = other_player == Colour::WHITE ? Colour::BLACK : Colour::WHITE;
 
   const int start = move::get_start(move);
   const int end = move::get_end(move);
@@ -542,7 +557,7 @@ void BoardImpl::undo_move(Move move)
   }
 
   // Set the colour.
-  square::set_colour(start_sq, player_to_move_);
+  square::set_colour(start_sq, player_to_move);
 
   const auto cap = move::get_cap(move);
   if (cap != PieceType::NONE)
@@ -550,21 +565,12 @@ void BoardImpl::undo_move(Move move)
     square::set_pt(end_sq, cap);
     square::set_colour(end_sq, other_player);
   }
-
-  if (moving_piece_type == PieceType::KING)
-  {
-    king_locations_[static_cast<int>(player_to_move_)] = start;
-  }
-
-  scores_.pop();
-  hashes_.pop();
 }
 
 bool BoardImpl::in_check() const
 {
   // Call `will_be_in_check` with a dummy move.
-  int king_loc = king_locations_[static_cast<int>(player_to_move_)];
-  return will_be_in_check(king_loc, king_loc);
+  return will_be_in_check(0, 0);
 }
 
 std::optional<Piece> BoardImpl::get_piece(int row, int col) const
