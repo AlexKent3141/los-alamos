@@ -10,8 +10,10 @@ target_sources(search
     ${CMAKE_CURRENT_SOURCE_DIR}/src/search.cpp)
 
 target_link_libraries(search
+  PUBLIC
+    engine
   PRIVATE
-    engine)
+    pthread)
 
 set_target_properties(search
   PROPERTIES
