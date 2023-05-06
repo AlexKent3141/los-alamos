@@ -19,7 +19,7 @@ extern "C"
 
 using namespace la;
 
-constexpr std::chrono::milliseconds search_time{1000};
+std::chrono::milliseconds search_time{1000};
 
 static std::string image_path(const Piece& piece)
 {
@@ -359,8 +359,13 @@ void LosAlamosApp::run()
   }
 }
 
-int main()
+int main(int argc, char** argv)
 {
+  if (argc > 1)
+  {
+    search_time = std::chrono::milliseconds(std::stoi(argv[1]));
+  }
+
   LosAlamosApp app;
   app.run();
 
