@@ -33,11 +33,11 @@ int minimax(la::Board& board, int depth, int alpha, int beta, Table& table)
     return board.score();
   }
 
-//Entry* entry;
-//if (table.probe(board.hash(), &entry) && entry->depth == depth)
-//{
-//  return entry->score;
-//}
+  Entry* entry;
+  if (table.probe(board.hash(), &entry) && entry->depth >= depth)
+  {
+    alpha = std::max(alpha, entry->score);
+  }
 
   const auto moves = board.get_moves();
   if (moves.empty())
@@ -85,12 +85,12 @@ int minimax(la::Board& board, int depth, int alpha, int beta, Table& table)
     }
   }
 
-//if (depth > entry->depth)
-//{
-//  entry->hash = board.hash();
-//  entry->depth = depth;
-//  entry->score = best_score;
-//}
+  if (depth > entry->depth)
+  {
+    entry->hash = board.hash();
+    entry->depth = depth;
+    entry->score = alpha;
+  }
 
   return best_score;
 }
