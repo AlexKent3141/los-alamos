@@ -27,13 +27,63 @@ bool in_time()
   return Clock::now() < current_search_end_time;
 }
 
-int minimax(la::Board& board, int depth, int alpha, int beta, Table& table)
+// Search only the dynamic moves to try and get to a quiet position.
+// Playing a move in this stage is optional, so we need to keep track of a `stand-pat` value.
+int quiesce(la::Board& board, int depth, int alpha, int beta)
 {
+  ++num_nodes_searched;
+
   if (depth == 0)
   {
-    ++num_nodes_searched;
     return board.score();
   }
+
+  const int stand_pat = board.score();
+  if (stand_pat >= beta)
+  {
+    return beta;
+  }
+
+  if (alpha < stand_pat)
+  {
+    alpha = stand_pat;
+  }
+
+  const auto moves = board.get_moves(
+    board.in_check() ? la::MoveGenType::ALL : la::MoveGenType::DYNAMIC);
+  int score;
+  for (const auto move : moves)
+  {
+    board.make_move(move);
+    score = -quiesce(board, depth - 1, -beta, -alpha);
+    board.undo_move(move);
+
+    alpha = std::max(alpha, score);
+    if (alpha >= beta)
+    {
+      return beta;
+    }
+  }
+
+  return alpha;
+}
+
+int minimax(la::Board& board, int depth, int alpha, int beta, Table& table, int num_extensions = 0)
+{
+  static constexpr int max_extensions = 3;
+
+  if (depth == 0)
+  {
+    // If we're in check then we don't want to stop yet.
+    if (num_extensions < max_extensions && board.in_check())
+    {
+      return minimax(board, 1, alpha, beta, table, num_extensions + 1);
+    }
+
+    return quiesce(board, 3, alpha, beta);
+  }
+
+  ++num_nodes_searched;
 
   la::Move hash_move = 0;
   Entry* entry;
@@ -101,7 +151,7 @@ int minimax(la::Board& board, int depth, int alpha, int beta, Table& table)
     }
 
     board.make_move(move);
-    score = -minimax(board, depth - 1, -beta, -alpha, table);
+    score = -minimax(board, depth - 1, -beta, -alpha, table, num_extensions);
     board.undo_move(move);
 
     if (score > best_score)
@@ -139,7 +189,8 @@ Move search(
   std::chrono::milliseconds timeout,
   std::function<void(const SearchData&)> callback)
 {
-  current_search_end_time = Clock::now() + timeout;
+  const auto start_time = Clock::now();
+  current_search_end_time = start_time + timeout;
 
   const auto moves = board.get_moves();
 
@@ -175,7 +226,10 @@ Move search(
       best_move = best_move_at_depth;
       best_score = best_score_at_depth;
 
-      SearchData data = { depth, best_score, best_move, num_nodes_searched };
+      const auto time_taken =
+        std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now() - start_time);
+
+      SearchData data = { depth, best_score, best_move, num_nodes_searched, time_taken };
       callback(data);
     }
 

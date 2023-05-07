@@ -16,6 +16,7 @@ struct SearchData
   int score;
   la::Move best_move;
   std::uint64_t nodes_searched;
+  std::chrono::milliseconds time_taken;
 };
 
 // Blocking search.
