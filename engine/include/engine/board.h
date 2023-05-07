@@ -36,6 +36,12 @@ enum class PieceType : std::uint8_t
   NUM_PIECE_TYPES
 };
 
+enum class MoveGenType : std::uint8_t
+{
+  ALL,
+  DYNAMIC
+};
+
 constexpr int num_piece_types = static_cast<int>(PieceType::NUM_PIECE_TYPES);
 
 struct Piece
@@ -71,7 +77,7 @@ public:
   ~Board();
 
   Colour player_to_move() const;
-  std::vector<Move> get_moves() const;
+  std::vector<Move> get_moves(MoveGenType type = MoveGenType::ALL) const;
   std::vector<int> get_targets_for_piece(int, int) const;
   void make_move(Move);
   void make_move(int, int, PieceType pt = PieceType::NONE);

@@ -69,7 +69,7 @@ class BoardImpl
 {
 public:
   BoardImpl();
-  std::vector<Move> get_moves() const;
+  std::vector<Move> get_moves(MoveGenType type) const;
   std::vector<int> get_targets_for_piece(int, int) const;
   Colour player_to_move() const { return states_.back().player_to_move; }
   void make_move(Move);
@@ -138,7 +138,7 @@ private:
   }
 
   bool will_be_in_check(int, int) const;
-  void add_pawn_moves(int, std::vector<Move>&) const;
+  void add_pawn_moves(int, std::vector<Move>&, la::MoveGenType) const;
 };
 
 BoardImpl::BoardImpl()
@@ -282,7 +282,7 @@ check_end:
   return in_check;
 }
 
-void BoardImpl::add_pawn_moves(int loc, std::vector<Move>& moves) const
+void BoardImpl::add_pawn_moves(int loc, std::vector<Move>& moves, la::MoveGenType type) const
 {
   const auto add_promotions = [&moves] (const Move& move)
   {
@@ -312,7 +312,7 @@ void BoardImpl::add_pawn_moves(int loc, std::vector<Move>& moves) const
     {
       add_promotions(move);
     }
-    else
+    else if (type != la::MoveGenType::DYNAMIC)
     {
       moves.push_back(move);
     }
@@ -364,7 +364,7 @@ void BoardImpl::add_pawn_moves(int loc, std::vector<Move>& moves) const
   }
 }
 
-std::vector<Move> BoardImpl::get_moves() const
+std::vector<Move> BoardImpl::get_moves(MoveGenType type) const
 {
   std::vector<Move> moves;
 
@@ -391,7 +391,7 @@ std::vector<Move> BoardImpl::get_moves() const
 
     if (pt == PieceType::PAWN_WHITE || pt == PieceType::PAWN_BLACK)
     {
-      add_pawn_moves(loc, moves);
+      add_pawn_moves(loc, moves, type);
     }
     else
     {
@@ -414,7 +414,8 @@ std::vector<Move> BoardImpl::get_moves() const
             break;
           }
 
-          if (!will_be_in_check(loc, target))
+          // Potential quiet move.
+          if (type != la::MoveGenType::DYNAMIC && !will_be_in_check(loc, target))
           {
             moves.push_back(move::create(loc, target));
           }
@@ -437,7 +438,7 @@ std::vector<int> BoardImpl::get_targets_for_piece(int row, int col) const
 
   // Get all moves and filter them based on start location.
   std::vector<int> targets;
-  const auto moves = get_moves();
+  const auto moves = get_moves(la::MoveGenType::ALL);
 
   for (const auto move : moves)
   {
@@ -680,9 +681,9 @@ Colour Board::player_to_move() const
   return impl_->player_to_move();
 }
 
-std::vector<Move> Board::get_moves() const
+std::vector<Move> Board::get_moves(MoveGenType type) const
 {
-  return impl_->get_moves();
+  return impl_->get_moves(type);
 }
 
 std::vector<int> Board::get_targets_for_piece(int row, int col) const
