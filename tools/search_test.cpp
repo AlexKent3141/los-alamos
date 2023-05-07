@@ -10,11 +10,12 @@ int main()
   const auto callback = [&board] (const la::SearchData& data)
   {
     std::printf(
-      "%6d %6s %7d %13ld\n",
+      "%6d %6s %7d %13ld %10ldms\n",
       data.depth,
       board.move_to_string(data.best_move).c_str(),
       data.score,
-      data.nodes_searched);
+      data.nodes_searched,
+      data.time_taken.count());
 
     std::fflush(stdout);
   };
