@@ -75,6 +75,8 @@ public:
   void make_move(Move);
   void make_move(int, int, PieceType);
   void undo_move(Move);
+  void make_null_move();
+  void undo_null_move();
   int score() const { return states_.back().score; }
   std::uint64_t hash() const { return states_.back().hash; }
   bool is_draw() const;
@@ -547,6 +549,22 @@ void BoardImpl::make_move(int start, int end, PieceType promo)
   make_move(move);
 }
 
+void BoardImpl::make_null_move()
+{
+  auto next_state = states_.back();
+  next_state.player_to_move =
+    next_state.player_to_move == Colour::WHITE ? Colour::BLACK : Colour::WHITE;
+  next_state.score *= -1;
+  next_state.hash ^= keys::white_key;
+  next_state.is_reversible = true;
+  states_.push_back(next_state);
+}
+
+void BoardImpl::undo_null_move()
+{
+  states_.pop_back();
+}
+
 void BoardImpl::undo_move(Move move)
 {
   const auto other_player = states_.back().player_to_move;
@@ -711,6 +729,16 @@ void Board::make_move(int start, int end, PieceType promo)
 void Board::undo_move(Move move)
 {
   impl_->undo_move(move);
+}
+
+void Board::make_null_move()
+{
+  impl_->make_null_move();
+}
+
+void Board::undo_null_move()
+{
+  impl_->undo_null_move();
 }
 
 int Board::score() const

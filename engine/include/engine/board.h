@@ -80,9 +80,14 @@ public:
   Colour player_to_move() const;
   std::vector<Move> get_moves(MoveGenType type = MoveGenType::ALL) const;
   std::vector<int> get_targets_for_piece(int, int) const;
+
   void make_move(Move);
   void make_move(int, int, PieceType pt = PieceType::NONE);
   void undo_move(Move);
+
+  void make_null_move();
+  void undo_null_move();
+
   int score() const; // The score from the current player's perspective.
   std::uint64_t hash() const;
   bool in_check() const;

@@ -83,6 +83,20 @@ int minimax(la::Board& board, int depth, int alpha, int beta, Table& table, int 
     return quiesce(board, 3, alpha, beta);
   }
 
+  // Null move pruning: if we're already doing very well, and still are after passing, then
+  // return beta.
+  if (depth > 3 && board.score() >= beta && !board.in_check())
+  {
+    board.make_null_move();
+    int null_score = -minimax(board, depth - 4, -beta, -alpha, table, num_extensions);
+    board.undo_null_move();
+
+    if (null_score >= beta)
+    {
+      return beta;
+    }
+  }
+
   ++num_nodes_searched;
 
   la::Move hash_move = 0;
@@ -117,15 +131,7 @@ int minimax(la::Board& board, int depth, int alpha, int beta, Table& table, int 
     }
   }
 
-  // Sort moves so that captures are first.
-  std::size_t cap_index = 0;
-  for (std::size_t i = 0; i < moves.size(); i++)
-  {
-    if (la::move::get_cap(moves[i]) != la::PieceType::NONE)
-    {
-      std::swap(moves[cap_index++], moves[i]);
-    }
-  }
+  std::size_t prioritised_index = 0;
 
   // If we have a hash move then put it first.
   if (hash_move != 0)
@@ -134,9 +140,18 @@ int minimax(la::Board& board, int depth, int alpha, int beta, Table& table, int 
     {
       if (moves[i] == hash_move)
       {
-        std::swap(moves[i], moves[0]);
+        std::swap(moves[prioritised_index++], moves[i]);
         break;
       }
+    }
+  }
+
+  // Next put the captures.
+  for (std::size_t i = prioritised_index; i < moves.size(); i++)
+  {
+    if (la::move::get_cap(moves[i]) != la::PieceType::NONE)
+    {
+      std::swap(moves[prioritised_index++], moves[i]);
     }
   }
 
