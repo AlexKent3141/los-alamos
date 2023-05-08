@@ -94,7 +94,7 @@ int minimax(la::Board& board, int depth, int alpha, int beta, Table& table, int 
       return minimax(board, 1, alpha, beta, table, num_extensions + 1);
     }
 
-    return quiesce(board, 3, alpha, beta);
+    return quiesce(board, 5, alpha, beta);
   }
 
   // Null move pruning: if we're already doing well, and still are after passing, then
