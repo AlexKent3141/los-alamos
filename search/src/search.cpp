@@ -83,7 +83,7 @@ int minimax(la::Board& board, int depth, int alpha, int beta, Table& table, int 
     return quiesce(board, 3, alpha, beta);
   }
 
-  // Null move pruning: if we're already doing very well, and still are after passing, then
+  // Null move pruning: if we're already doing well, and still are after passing, then
   // return beta.
   if (depth > 3 && board.score() >= beta && !board.in_check())
   {
@@ -95,6 +95,14 @@ int minimax(la::Board& board, int depth, int alpha, int beta, Table& table, int 
     {
       return beta;
     }
+  }
+
+  // Reverse futility pruning: if at low depth the current player is doing very well then assume
+  // we will be able to exceed the upper bound.
+  constexpr std::array<int, 4> rft_margin = { 0, 0, 100, 200 };
+  if (depth < 4 && !board.in_check() && board.score() > beta + rft_margin[depth])
+  {
+    return beta;
   }
 
   ++num_nodes_searched;
