@@ -49,8 +49,22 @@ int quiesce(la::Board& board, int depth, int alpha, int beta)
     alpha = stand_pat;
   }
 
-  const auto moves = board.get_moves(
+  auto moves = board.get_moves(
     board.in_check() ? la::MoveGenType::ALL : la::MoveGenType::DYNAMIC);
+
+  // Prioritise captures which are most valuable.
+  std::size_t prioritised_index = 0;
+  for (const auto pt : { la::PieceType::QUEEN, la::PieceType::ROOK, la::PieceType::KNIGHT })
+  {
+    for (std::size_t i = prioritised_index; i < moves.size(); i++)
+    {
+      if (la::move::get_cap(moves[i]) == pt)
+      {
+        std::swap(moves[prioritised_index++], moves[i]);
+      }
+    }
+  }
+
   int score;
   for (const auto move : moves)
   {
