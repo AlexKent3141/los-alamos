@@ -300,7 +300,7 @@ void BoardImpl::add_pawn_moves(int loc, std::vector<Move>& moves, la::MoveGenTyp
   const auto player_to_move = states_.back().player_to_move;
 
   const int forward_offset =
-    player_to_move == Colour::WHITE ?  padded_board_side : -padded_board_side;
+    player_to_move == Colour::WHITE ? padded_board_side : -padded_board_side;
 
   // Can we move forward to an empty location?
   const int forward = loc + forward_offset;
@@ -308,14 +308,21 @@ void BoardImpl::add_pawn_moves(int loc, std::vector<Move>& moves, la::MoveGenTyp
   if (square::get_pt(target_sq) == PieceType::NONE && !will_be_in_check(loc, forward))
   {
     const auto move = move::create(loc, forward);
-    if (forward < 3 * padded_board_side || forward >= 7 * padded_board_side)
+    if (
+      (type & la::MoveGenType::DYNAMIC) &&
+      (forward < 3 * padded_board_side || forward >= 7 * padded_board_side))
     {
       add_promotions(move);
     }
-    else if (type != la::MoveGenType::DYNAMIC)
+    else if (type & la::MoveGenType::QUIET)
     {
       moves.push_back(move);
     }
+  }
+
+  if (!(type & la::MoveGenType::DYNAMIC))
+  {
+    return;
   }
 
   // Can we capture diagonally?
@@ -404,7 +411,7 @@ std::vector<Move> BoardImpl::get_moves(MoveGenType type) const
         {
           if (square::get_pt(target_sq) != PieceType::NONE)
           {
-            if (square::get_colour(target_sq) != player_to_move)
+            if ((type & la::MoveGenType::DYNAMIC) && square::get_colour(target_sq) != player_to_move)
             {
               // Capture move.
               if (will_be_in_check(loc, target)) break;
@@ -415,7 +422,7 @@ std::vector<Move> BoardImpl::get_moves(MoveGenType type) const
           }
 
           // Potential quiet move.
-          if (type != la::MoveGenType::DYNAMIC && !will_be_in_check(loc, target))
+          if ((type & la::MoveGenType::QUIET) && !will_be_in_check(loc, target))
           {
             moves.push_back(move::create(loc, target));
           }

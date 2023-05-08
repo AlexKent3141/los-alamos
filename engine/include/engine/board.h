@@ -36,10 +36,11 @@ enum class PieceType : std::uint8_t
   NUM_PIECE_TYPES
 };
 
-enum class MoveGenType : std::uint8_t
+enum MoveGenType
 {
-  ALL,
-  DYNAMIC
+  QUIET = 1,
+  DYNAMIC = 2,
+  ALL = QUIET | DYNAMIC
 };
 
 constexpr int num_piece_types = static_cast<int>(PieceType::NUM_PIECE_TYPES);
